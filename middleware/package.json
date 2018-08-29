@@ -17,10 +17,8 @@
     "tsc": "tsc -p .",
     "build": "npm run clean; npm run tsc",
     "start": "mocha -w --inspect=0.0.0.0:9229 --compilers ts:ts-node/register src/test/**/*.ts",
-    "test": "snyk test && nyc --reporter=text mocha --compilers ts:ts-node/register src/test/**/*.ts",
-    "prepublish": "npm run build",
-    "snyk-protect": "snyk protect",
-    "prepare": "npm run snyk-protect"
+    "test": "nyc --reporter=text mocha --compilers ts:ts-node/register src/test/**/*.ts",
+    "prepublish": "npm run build"
   },
   "devDependencies": {
     "@types/chai": "4.1.2",
@@ -35,12 +33,12 @@
     "@types/uuid": "3.4.3",
     "@types/validator": "6.3.0",
     "chai": "4.1.2",
-    "chai-http": "^3.0.0",
+    "chai-http": "^4.0.0",
     "chai-uuid": "^1.0.6",
     "concurrently": "3.5.1",
     "cookie-parser": "^1.4.3",
-    "mocha": "3.5.3",
-    "nyc": "11.4.1",
+    "mocha": "^5.2.0",
+    "nyc": "^13.0.1",
     "rimraf": "2.6.2",
     "sinon": "^2.4.1",
     "ts-node": "^3.0.6",
@@ -55,7 +53,6 @@
     "express": "4.16.2",
     "express-session": "^1.15.6",
     "ioredis": "3.2.2",
-    "snyk": "^1.69.7",
     "uuid": "3.2.1",
     "validator": "8.2.0"
   },
@@ -75,6 +72,5 @@
     ],
     "sourceMap": true,
     "instrument": true
-  },
-  "snyk": true
+  }
 }
