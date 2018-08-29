@@ -1,0 +1,12 @@
+version: "3"
+services:
+  sut:
+    build: .
+    environment:
+      NODE_ENV: "test"
+    depends_on:
+      - redis
+  redis:
+    image: redis
+    logging:
+      driver: "none"
