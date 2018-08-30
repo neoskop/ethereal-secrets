@@ -1,6 +1,6 @@
 # Ethereal Secrets
 
-A middleware to help secure temporary secrets in the browser.
+A middleware to help secure temporary confidential data in the browser.
 
 ## Overview
 
