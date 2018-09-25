@@ -1,6 +1,6 @@
 {
   "name": "@neoskop/ethereal-secrets-server",
-  "version": "0.0.2",
+  "version": "1.2.1",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
   "author": "Arne Diekmann <diekmann@neoskop.de>",
@@ -16,15 +16,15 @@
     "@types/helmet": "0.0.35",
     "concurrently": "3.5.1",
     "rimraf": "2.6.2",
-    "ts-node": "^3.0.6",
+    "ts-node": "3.0.6",
     "typescript": "2.7.1"
   },
   "dependencies": {
-    "@neoskop/ethereal-secrets-middleware": "1.2.0",
+    "@neoskop/ethereal-secrets-middleware": "1.2.1",
     "express": "4.16.2",
     "helmet": "3.10.0"
   },
   "engines": {
-    "node": "9.5.0"
+    "node": "8.4.0"
   }
 }

@@ -8,14 +8,14 @@ To add the library to your project:
 $ npm i --save @neoskop/ethereal-secrets-client
 ```
 
-to store a value 'bar' under the key 'foo' encrypted in the session storage:
+to store a value `bar` under the key `foo` encrypted in the session storage:
 
 ```typescript
 let client = new EtherealSecretsClient({
   endpoint: 'http://localhost:8080/secrets'
 });
 client.setItem('foo', 'bar');
-client.getItem('foo'); # => bar
+client.getItem('foo'); // => bar
 client.removeItem('foo');
 ```
 

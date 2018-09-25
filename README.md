@@ -10,6 +10,33 @@ _Ethereal Secrets_ is a small set of projects to enable clients to store sensiti
 2. [Server](./server): A simple Express server that showcases the usage and can be used as a standalone backend.
 3. [Client](./client): A TypeScript/JavaScript library that abstracts the communication with the server.
 
+## Quickstart
+
+Start a standalone ethereal secrets server along with a redis server:
+
+```sh
+$ docker network create ethereal-secrets-example
+$ docker run --rm -d --network ethereal-secrets-example --name redis redis
+$ docker run --rm -d --network ethereal-secrets-example  --name ethereal-secrets-server -p 8080:8080 neoskop/ethereal-secrets-server
+```
+
+Install the client package:
+
+```sh
+$ npm i --save @neoskop/ethereal-secrets-client
+```
+
+to store a value `bar` under the key `foo` encrypted in the session storage:
+
+```typescript
+let client = new EtherealSecretsClient({
+  endpoint: 'http://localhost:8080/secrets'
+});
+client.setItem('foo', 'bar');
+client.getItem('foo'); // => bar
+client.removeItem('foo');
+```
+
 ## Functionality
 
 _Ethereal Secrets_ can either be used to encrypt and store data locally ([local mode](#local-mode)) or to store encrypted data for later retrieval on the server ([remote mode](#remote-mode)). 

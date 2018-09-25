@@ -1,4 +1,4 @@
-# Ethereal Secrets #
+# Ethereal Secrets Middleware #
 
 An express middleware to expose a REST endpoint to issue secrets for
 client to encrypt their local stores with (the so called local mode) or
