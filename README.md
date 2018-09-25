@@ -12,7 +12,7 @@ _Ethereal Secrets_ is a small set of projects to enable clients to store sensiti
 
 ## Quickstart
 
-Start a standalone ethereal secrets server along with a redis server:
+Start a standalone [Ethereal Secrets server](./server) along with a Redis server:
 
 ```sh
 $ docker network create ethereal-secrets-example
