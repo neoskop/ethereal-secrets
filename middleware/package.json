@@ -54,7 +54,7 @@
     "express-session": "^1.15.6",
     "ioredis": "3.2.2",
     "uuid": "3.2.1",
-    "validator": "8.2.0"
+    "validator": "9.4.1"
   },
   "nyc": {
     "require": [
