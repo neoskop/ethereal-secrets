@@ -22,7 +22,7 @@
   "dependencies": {
     "@neoskop/ethereal-secrets-middleware": "1.2.1",
     "express": "4.16.2",
-    "helmet": "3.10.0"
+    "helmet": "3.21.1"
   },
   "engines": {
     "node": "8.4.0"
