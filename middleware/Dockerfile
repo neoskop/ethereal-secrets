@@ -1,4 +1,4 @@
-FROM node:12.13.0-buster-slim AS build
+FROM node:12.13.0-buster-slim
 LABEL maintainer "devops@neoskop.de"
 
 WORKDIR /home/node
