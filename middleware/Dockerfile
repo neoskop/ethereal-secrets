@@ -1,13 +1,13 @@
-FROM node:8.4.0
+FROM node:12.13.0-buster-slim AS build
 LABEL maintainer "devops@neoskop.de"
 
 WORKDIR /home/node
-COPY *.json ./
+COPY *.json yarn.lock ./
 RUN chown -R node:node /home/node
 USER node
-RUN npm install
+RUN yarn
 COPY src ./src
-RUN npm run build
+RUN yarn build
 
-CMD ["npm","run","test"]
+CMD ["yarn","test"]
 EXPOSE 8080 9229

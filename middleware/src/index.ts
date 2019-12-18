@@ -1,13 +1,18 @@
-import session = require("express-session");
-import UuidStatic = require("uuid");
+import session = require('express-session');
+import UuidStatic = require('uuid');
+import * as bodyParser from 'body-parser';
 import * as RedisStore from 'connect-redis';
-import {RedisStoreOptions} from 'connect-redis';
-import {NextFunction, Request, RequestHandler, Response} from "express-serve-static-core";
+import { RedisStoreOptions } from 'connect-redis';
 import * as crypto from 'crypto';
-import * as Validator from "validator";
-import * as IORedis from "ioredis";
-import * as bodyParser from "body-parser";
-import * as deepmerge from "deepmerge";
+import * as deepmerge from 'deepmerge';
+import {
+  NextFunction,
+  Request,
+  RequestHandler,
+  Response,
+} from 'express-serve-static-core';
+import * as IORedis from 'ioredis';
+import * as Validator from 'validator';
 
 export interface EtherealSecretsConfig {
   local?: {
@@ -16,87 +21,107 @@ export interface EtherealSecretsConfig {
       name?: string;
       secure?: boolean;
       path?: string;
-      sameSite?: any;
-    },
+      sameSite?: boolean | 'lax' | 'strict' | 'none';
+    };
     ttl?: number;
-  },
+  };
   remote?: {
     enabled?: boolean;
     defaultTtl?: number;
     maxTtl?: number;
     maxLength?: number;
-  }
+  };
   trustProxy?: boolean;
   redis?: RedisStoreOptions;
 }
 
-let parseUuid = function (req: Request, res: Response, uuidConsumer: (uuid?: string) => any) {
-  let requestUuid = req.path.replace(/^\/|\/$/g, '');
+const parseUuid = (
+  req: Request,
+  res: Response,
+  uuidConsumer: (uuid?: string) => void,
+) => {
+  const requestUuid = req.path.replace(/^\/|\/$/g, '');
 
-  if (Validator.isUUID(requestUuid)) {
+  if (Validator.default.isUUID(requestUuid)) {
     uuidConsumer(requestUuid);
   } else {
     res.sendStatus(400);
   }
 };
 
-let handleLocalEncryption = function (sessionHandler: RequestHandler, req: Request, res: Response) {
+const handleLocalEncryption = (
+  sessionHandler: RequestHandler,
+  req: Request,
+  res: Response,
+) => {
   sessionHandler(req, res, () => {
     if (!req.session.key) {
       req.session.key = crypto.randomBytes(32).toString('base64');
     }
 
     res.json({
-      key: req.session.key
+      key: req.session.key,
     });
   });
 };
 
-let readRemotelyEncrypted = async function (redisClient: any, uuid: string, res: Response) {
-  let key = "remote:" + uuid;
-  let data = await redisClient.get(key);
+const readRemotelyEncrypted = async (
+  redisClient: IORedis.Redis,
+  uuid: string,
+  res: Response,
+) => {
+  const key = 'remote:' + uuid;
+  const data = await redisClient.get(key);
 
   if (data == null) {
     res.sendStatus(404);
   } else {
-    let ttl = await redisClient.ttl(key);
+    const ttl = await redisClient.ttl(key);
 
     if (ttl < 0) {
       res.sendStatus(500);
     } else {
-      let expiryDate = new Date();
+      const expiryDate = new Date();
       expiryDate.setSeconds(expiryDate.getSeconds() + ttl);
       res.json({
         data: data,
-        expiryDate: expiryDate.toUTCString()
+        expiryDate: expiryDate.toUTCString(),
       });
     }
   }
 };
 
-let createRemotelyEncrypted = function (req: Request, res: Response, redisClient: any, config: { defaultTtl?: number; maxTtl?: number; maxLength?: number }) {
+const createRemotelyEncrypted = function(
+  req: Request,
+  res: Response,
+  redisClient: IORedis.Redis,
+  config: { defaultTtl?: number; maxTtl?: number; maxLength?: number },
+) {
   bodyParser.json()(req, res, () => {
-    if (!req.body.hasOwnProperty('data') || req.body.data.length > config.maxLength) {
+    if (
+      !req.body.hasOwnProperty('data') ||
+      req.body.data.length > config.maxLength
+    ) {
       res.sendStatus(400);
     } else {
-      let uuid = UuidStatic.v4();
+      const uuid = UuidStatic.v4();
       let ttl = config.defaultTtl;
 
       if (req.body.hasOwnProperty('ttl')) {
-        let requestedTtl = parseInt(req.body.ttl);
+        const requestedTtl = parseInt(req.body.ttl);
 
         if (requestedTtl > 0 && requestedTtl <= config.maxTtl) {
           ttl = requestedTtl;
         }
       }
 
-      let redisKey = "remote:" + uuid;
-      redisClient.set(redisKey, req.body.data, (err) => {
+      const redisKey = 'remote:' + uuid;
+      redisClient.set(redisKey, req.body.data, (err: Error) => {
         if (err) {
           throw err;
         }
 
-        redisClient.expire(redisKey, ttl, (err) => {
+        redisClient.expire(redisKey, ttl, (err: Error) => {
           if (err) {
             throw err;
           }
@@ -106,7 +131,7 @@ let createRemotelyEncrypted = function (req: Request, res: Response, redisClient
 
           res.status(201).send({
             key: uuid,
-            expiryDate: expiryDate.toUTCString()
+            expiryDate: expiryDate.toUTCString(),
           });
         });
       });
@@ -114,49 +139,66 @@ let createRemotelyEncrypted = function (req: Request, res: Response, redisClient
   });
 };
 
-async function removeRemotelyEncrypted(redisClient: any, uuid: string, res: Response) {
-  await redisClient.del("remote:" + uuid);
+async function removeRemotelyEncrypted(
+  redisClient: IORedis.Redis,
+  uuid: string,
+  res: Response,
+) {
+  await redisClient.del('remote:' + uuid);
   res.sendStatus(200);
 }
 
-export function etherealSecrets(config: EtherealSecretsConfig = {}): (req: Request, res: Response, next: NextFunction) => void {
-  config = deepmerge({
-    local: {
-      ttl: 4 * 60 * 60, // Default to 4 hours
-      cookie: {
-        name: 'sessionid',
-        secret: crypto.randomBytes(32).toString('hex')
-      }
+export function etherealSecrets(
+  config: EtherealSecretsConfig = {},
+): (req: Request, res: Response, next: NextFunction) => void {
+  config = deepmerge(
+    {
+      local: {
+        ttl: 4 * 60 * 60, // Default to 4 hours
+        cookie: {
+          name: 'sessionid',
+          secret: crypto.randomBytes(32).toString('hex'),
+        },
+      },
+      remote: {
+        enabled: false,
+        defaultTtl: 2 * 24 * 60 * 60, // Default to 2 days
+        maxTtl: 7 * 24 * 60 * 60, // Default to 1 week
+        maxLength: 64 * 1000,
+      },
     },
-    remote: {
-      enabled: false,
-      defaultTtl: 2 * 24 * 60 * 60, // Default to 2 days
-      maxTtl: 7 * 24 * 60 * 60, // Default to 1 week
-      maxLength: 64 * 1000
-    }
-  }, config);
+    config,
+  );
 
-  let redisConfig: RedisStoreOptions = Object.assign({
-    host: 'redis'
-  }, config.redis, {ttl: config.local.ttl});
+  const redisConfig: RedisStoreOptions = Object.assign(
+    {
+      host: 'redis',
+    },
+    config.redis,
+    { ttl: config.local.ttl },
+  );
 
-  let sessionConfig: session.SessionOptions = {
-    store: new (RedisStore(session))(redisConfig),
+  const redisClient: IORedis.Redis = new IORedis(redisConfig);
+
+  const sessionConfig: session.SessionOptions = {
+    store: new (RedisStore(session))({ client: redisClient }),
     name: config.local.cookie.name,
     secret: config.local.cookie.secret,
     resave: false,
     saveUninitialized: false,
-    cookie: Object.assign({
-      httpOnly: true,
-      maxAge: config.local.ttl * 1000,
-      path: '/',
-      secure: false,
-      sameSite: 'strict'
-    }, config.local.cookie)
+    cookie: Object.assign(
+      {
+        httpOnly: true,
+        maxAge: config.local.ttl * 1000,
+        path: '/',
+        secure: false,
+        sameSite: 'strict',
+      },
+      config.local.cookie,
+    ),
   };
 
-  let sessionHandler: RequestHandler = session(sessionConfig);
-  let redisClient: any = !redisConfig.client ? new IORedis(redisConfig) : redisConfig.client;
+  const sessionHandler: RequestHandler = session(sessionConfig);
 
   return (req: Request, res: Response, next: NextFunction) => {
     if (config.remote.enabled) {
@@ -165,14 +207,18 @@ export function etherealSecrets(config: EtherealSecretsConfig = {}): (req: Reque
           if (req.path === '/') {
             return handleLocalEncryption(sessionHandler, req, res);
           } else {
-            return parseUuid(req, res, uuid => readRemotelyEncrypted(redisClient, uuid, res));
+            return parseUuid(req, res, uuid =>
+              readRemotelyEncrypted(redisClient, uuid, res),
+            );
           }
 
         case 'POST':
           return createRemotelyEncrypted(req, res, redisClient, config.remote);
 
         case 'DELETE':
-          return parseUuid(req, res, uuid => removeRemotelyEncrypted(redisClient, uuid, res));
+          return parseUuid(req, res, uuid =>
+            removeRemotelyEncrypted(redisClient, uuid, res),
+          );
       }
     } else {
       return handleLocalEncryption(sessionHandler, req, res);
