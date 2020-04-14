@@ -9,14 +9,14 @@ import chaiHttp = require('chai-http');
 import chaiUuid = require('chai-uuid');
 import UuidStatic = require('uuid');
 
-before(done => {
+before((done) => {
   this.redis = new IORedis({ host: 'redis' });
   chai.use(chaiHttp);
   chai.use(chaiUuid);
   done();
 });
 
-beforeEach(done => {
+beforeEach((done) => {
   this.app = express();
   this.clock = sinon.useFakeTimers();
   done();
@@ -32,6 +32,7 @@ function setupRemoteMiddleware(extraRemoteOptions?: Object) {
     '/secrets',
     etherealSecrets({
       remote: remoteOptions,
+      redis: { host: 'redis' },
     }),
   );
 }
@@ -46,6 +47,9 @@ describe('Ethereal Secrets Middleware', () => {
         },
         local: {
           ttl: 5,
+        },
+        redis: {
+          host: 'redis',
         },
       }),
     );
@@ -67,6 +71,7 @@ describe('Ethereal Secrets Middleware', () => {
         local: {
           ttl: 5,
         },
+        redis: { host: 'redis' },
       }),
     );
     try {
@@ -76,10 +81,7 @@ describe('Ethereal Secrets Middleware', () => {
         .set('Accept', 'application/json');
       chai.expect(res).to.have.cookie('sessionid');
       chai.expect(res).to.have.status(200).and.be.json;
-      chai
-        .expect(res.body)
-        .to.be.an('object')
-        .with.key('key');
+      chai.expect(res.body).to.be.an('object').with.key('key');
     } catch (err) {
       throw err;
     }
@@ -92,6 +94,7 @@ describe('Ethereal Secrets Middleware', () => {
         local: {
           ttl: 5,
         },
+        redis: { host: 'redis' },
       }),
     );
     let agent = chai.request.agent(this.app);
@@ -119,6 +122,7 @@ describe('Ethereal Secrets Middleware', () => {
         local: {
           ttl: 5,
         },
+        redis: { host: 'redis' },
       }),
     );
     try {
@@ -147,6 +151,7 @@ describe('Ethereal Secrets Middleware', () => {
         local: {
           ttl: 5,
         },
+        redis: { host: 'redis' },
       }),
     );
     try {
@@ -173,6 +178,7 @@ describe('Ethereal Secrets Middleware', () => {
             secret: 'supersecret',
           },
         },
+        redis: { host: 'redis' },
       }),
     );
     try {
@@ -197,18 +203,12 @@ describe('Ethereal Secrets Middleware', () => {
   it('should store arbitrary data and return a uuid to it', async () => {
     setupRemoteMiddleware.call(this);
     try {
-      const res = await chai
-        .request(this.app)
-        .post('/secrets')
-        .send({
-          data: 'foo',
-        });
+      const res = await chai.request(this.app).post('/secrets').send({
+        data: 'foo',
+      });
       return Promise.all([
         chai.expect(res).to.have.status(201),
-        chai
-          .expect(res.body)
-          .to.be.an('object')
-          .with.keys('key', 'expiryDate'),
+        chai.expect(res.body).to.be.an('object').with.keys('key', 'expiryDate'),
         (chai.expect(res.body['key']).to.be.a as any).uuid(),
       ]);
     } catch (err) {
@@ -225,7 +225,7 @@ describe('Ethereal Secrets Middleware', () => {
         data: 'foo',
         ttl: 1337,
       })
-      .then(res => {
+      .then((res) => {
         let timeInEliteFuture = new Date();
         timeInEliteFuture.setSeconds(timeInEliteFuture.getSeconds() + 1337);
         return Promise.all([
@@ -239,7 +239,7 @@ describe('Ethereal Secrets Middleware', () => {
             .to.equal(timeInEliteFuture.getTime()),
         ]);
       })
-      .catch(err => {
+      .catch((err) => {
         throw err;
       });
   });
@@ -250,10 +250,10 @@ describe('Ethereal Secrets Middleware', () => {
       .agent(this.app)
       .post('/secrets')
       .set('Accept', 'application/json')
-      .then(res => {
+      .then((res) => {
         return chai.expect(res).to.have.status(400);
       })
-      .catch(err => {
+      .catch((err) => {
         return chai.expect(err.response).to.have.status(400);
       });
   });
@@ -267,12 +267,12 @@ describe('Ethereal Secrets Middleware', () => {
         data: 'foo',
       })
       .set('Accept', 'application/json')
-      .then(res => {
+      .then((res) => {
         let key = res.body['key'];
         return chai.request
           .agent(this.app)
           .get('/secrets/' + key)
-          .then(res => {
+          .then((res) => {
             return Promise.all([
               chai.expect(res).to.have.status(200),
               chai
@@ -282,11 +282,11 @@ describe('Ethereal Secrets Middleware', () => {
               chai.expect(res.body['data']).to.equal('foo'),
             ]);
           })
-          .catch(err => {
+          .catch((err) => {
             throw err;
           });
       })
-      .catch(err => {
+      .catch((err) => {
         throw err;
       });
   });
@@ -297,10 +297,10 @@ describe('Ethereal Secrets Middleware', () => {
       .agent(this.app)
       .get('/secrets/foobar')
       .set('Accept', 'application/json')
-      .then(res => {
+      .then((res) => {
         return chai.expect(res).to.have.status(400);
       })
-      .catch(err => {
+      .catch((err) => {
         return chai.expect(err.response).to.have.status(400);
       });
   });
@@ -310,10 +310,10 @@ describe('Ethereal Secrets Middleware', () => {
     return chai.request
       .agent(this.app)
       .del('/secrets/foobar')
-      .then(res => {
+      .then((res) => {
         return chai.expect(res).to.have.status(400);
       })
-      .catch(err => {
+      .catch((err) => {
         return chai.expect(err.response).to.have.status(400);
       });
   });
@@ -324,10 +324,10 @@ describe('Ethereal Secrets Middleware', () => {
       .agent(this.app)
       .get('/secrets/' + UuidStatic.v4())
       .set('Accept', 'application/json')
-      .then(res => {
+      .then((res) => {
         return chai.expect(res).to.have.status(404);
       })
-      .catch(err => {
+      .catch((err) => {
         return chai.expect(err.response).to.have.status(404);
       });
   });
@@ -341,20 +341,20 @@ describe('Ethereal Secrets Middleware', () => {
         data: 'foo',
       })
       .set('Accept', 'application/json')
-      .then(async res => {
+      .then(async (res) => {
         let key = res.body['key'];
         await chai.request.agent(this.app).del('/secrets/' + key);
         return chai.request
           .agent(this.app)
           .get('/secrets/' + key)
-          .then(res => {
+          .then((res) => {
             return chai.expect(res).to.have.status(404);
           })
-          .catch(err => {
+          .catch((err) => {
             return chai.expect(err.response).to.have.status(404);
           });
       })
-      .catch(err => {
+      .catch((err) => {
         throw err;
       });
   });
@@ -376,7 +376,7 @@ describe('Ethereal Secrets Middleware', () => {
           chai.expect(ttl).to.be.greaterThan(-1),
         ]);
       })
-      .catch(err => {
+      .catch((err) => {
         throw err;
       });
   });
@@ -399,7 +399,7 @@ describe('Ethereal Secrets Middleware', () => {
           chai.expect(ttl).to.be.greaterThan(-1),
         ]);
       })
-      .catch(err => {
+      .catch((err) => {
         throw err;
       });
   });
@@ -419,7 +419,7 @@ describe('Ethereal Secrets Middleware', () => {
         let ttl = await this.redis.ttl('remote:' + key);
         return chai.expect(ttl).to.be.greaterThan(10);
       })
-      .catch(err => {
+      .catch((err) => {
         throw err;
       });
   });
@@ -445,7 +445,7 @@ describe('Ethereal Secrets Middleware', () => {
           chai.expect(ttl).to.be.greaterThan(-1),
         ]);
       })
-      .catch(err => {
+      .catch((err) => {
         throw err;
       });
   });
@@ -459,11 +459,43 @@ describe('Ethereal Secrets Middleware', () => {
         data: 'way too long',
       })
       .set('Accept', 'application/json')
-      .then(res => {
+      .then((res) => {
         return chai.expect(res).to.have.status(400);
       })
-      .catch(err => {
+      .catch((err) => {
         return chai.expect(err.response).to.have.status(400);
       });
+  });
+
+  it('should use a custom IORedis client if supplied', async () => {
+    this.app.use(
+      '/secrets',
+      etherealSecrets({
+        local: {
+          ttl: 9,
+          cookie: {
+            secret: 'supersecret',
+          },
+        },
+        redis: { client: this.redis },
+      }),
+    );
+    try {
+      const res = await chai.request
+        .agent(this.app)
+        .get('/secrets')
+        .set('Accept', 'application/json');
+      let cookieValue = res
+        .get('Set-Cookie')[0]
+        .replace(/sessionid=(.+?);.+/, '$1');
+      let unsignedCookie = cookieParser.signedCookie(
+        decodeURIComponent(cookieValue),
+        'supersecret',
+      );
+      let ttl = await this.redis.ttl('sess:' + unsignedCookie);
+      return chai.expect(ttl).to.be.lessThan(10);
+    } catch (err) {
+      throw err;
+    }
   });
 });

@@ -1,4 +1,4 @@
-# Ethereal Secrets Middleware #
+# Ethereal Secrets Middleware
 
 An express middleware to expose a REST endpoint to issue secrets for
 client to encrypt their local stores with (the so called local mode) or
@@ -6,21 +6,24 @@ to store encrypted data for later retrieval (remote mode). The keys and
 the cipher texts are stored in a Redis DB. Each entry in the database is
 assigned a time-to-live thus making the secretes _ethereal_.
 
-## Local mode ##
+## Local mode
 
 ```typescript
 let app = express();
-app.use('/secrets', etherealSecrets({
-  local: {
-    ttl: 15 * 60,
-    cookie: {
-      secret: 'icanhazcheezburger?'
-    }
-  },
-  redis: {
-    host: 'localhost'
-  }
-}));
+app.use(
+  '/secrets',
+  etherealSecrets({
+    local: {
+      ttl: 15 * 60,
+      cookie: {
+        secret: 'icanhazcheezburger?',
+      },
+    },
+    redis: {
+      client: new IORedis(),
+    },
+  }),
+);
 ```
 
 If a client now issues `GET /secrets` the API will return JSON in the
@@ -36,18 +39,21 @@ Along with a cookie containing a session ID. On subsequent requests the
 same key is returned as long as the session is valid and the same cookie
 is sent with the request.
 
-## Remote mode ##
+## Remote mode
 
 ```typescript
 let app = express();
-app.use('/secrets', etherealSecrets({
-  remote: {
-    defaultTtl: 24 * 60 * 60
-  },
-  redis: {
-    host: 'localhost'
-  }
-}));
+app.use(
+  '/secrets',
+  etherealSecrets({
+    remote: {
+      defaultTtl: 24 * 60 * 60,
+    },
+    redis: {
+      host: 'redis',
+    },
+  }),
+);
 ```
 
 If a client issues `POST /secrets` with arbitrary data as post body
