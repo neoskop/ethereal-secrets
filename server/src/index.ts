@@ -1,13 +1,10 @@
 import { etherealSecrets } from '@neoskop/ethereal-secrets-middleware';
 import * as express from 'express';
-import * as helmet from 'helmet';
+import helmet from 'helmet';
+import * as nocache from 'nocache';
 
 const app = express();
-app.use(
-  helmet({
-    noCache: true,
-  }),
-);
+app.use(helmet(), nocache());
 app.use(helmet.referrerPolicy({ policy: 'no-referrer' }));
 app.use(
   helmet.contentSecurityPolicy({
@@ -21,6 +18,9 @@ app.use(
   etherealSecrets({
     remote: {
       enabled: true,
+    },
+    redis: {
+      host: process.env.REDIS_HOST || 'redis',
     },
   }),
 );

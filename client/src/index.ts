@@ -34,7 +34,7 @@ export class EtherealSecretsClient {
 
     if (typeof window !== 'undefined') {
       this._agent = request;
-    } else if (this._agent === null) {
+    } else {
       this._agent = agent();
     }
   }
@@ -159,20 +159,18 @@ export class EtherealSecretsClient {
   private generateLocalSecret(): string {
     const randomValues = new Uint8Array(32);
 
-    if (window?.crypto) {
-      window.crypto.getRandomValues(randomValues);
-    } else if (window && window['msCrypto']) {
+    if (typeof crypto !== 'undefined') {
+      crypto.getRandomValues(randomValues);
+    } else if (typeof window !== 'undefined' && window['msCrypto']) {
       window['msCrypto'].getRandomValues(randomValues);
     } else {
       throw new Error('No secure source of randomness');
     }
 
-    // Workaround, since Buffer is no global JS element
     return randomValues.reduce(
       (prev, i) => prev + ((i < 16 ? '0' : '') + i.toString(16)),
       ''
     );
-    // return Buffer.from(randomValues.buffer).toString('hex');
   }
 
   private decryptCipherText(cipherText: string): Promise<string | null> {

@@ -1,4 +1,4 @@
-version: "3"
+version: "2.5"
 services:
   sut:
     build: .
@@ -8,11 +8,7 @@ services:
       - server
   server:
     image: neoskop/ethereal-secrets-server
-    logging:
-      driver: "none"
     depends_on:
       - redis
   redis:
     image: redis
-    logging:
-      driver: "none"

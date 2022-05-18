@@ -1,4 +1,4 @@
-import session = require('express-session');
+import * as session from 'express-session';
 import UuidStatic = require('uuid');
 import * as bodyParser from 'body-parser';
 import * as RedisStore from 'connect-redis';
@@ -55,12 +55,12 @@ const handleLocalEncryption = (
   res: Response,
 ) => {
   sessionHandler(req, res, () => {
-    if (!req.session.key) {
-      req.session.key = crypto.randomBytes(32).toString('base64');
+    if (!(req.session as any).key) {
+      (req.session as any).key = crypto.randomBytes(32).toString('base64');
     }
 
     res.json({
-      key: req.session.key,
+      key: (req.session as any).key,
     });
   });
 };
@@ -179,7 +179,7 @@ export function etherealSecrets(
   });
 
   const redisClient: ioredis.Redis =
-    (redisConfig.client as ioredis.Redis) || new ioredis(redisConfig);
+    (redisConfig.client as ioredis.Redis) || new ioredis.default(redisConfig);
 
   const sessionConfig: session.SessionOptions = {
     store: new (RedisStore(session))({
