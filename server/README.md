@@ -1,8 +1,8 @@
-# Ethereal Secrets Server #
+# Ethereal Secrets Server
 
 A standalone ethereal secrets server showcasing the usage of the middleware.
 
-## Quickstart ##
+## Quickstart
 
 Start a standalone ethereal secrets server along with a redis server:
 
