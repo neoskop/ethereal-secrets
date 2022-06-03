@@ -23,7 +23,7 @@
     "@neoskop/ethereal-secrets-middleware": "1.4.1",
     "express": "4.18.1",
     "helmet": "5.1.0",
-    "nocache": "3.0.3"
+    "nocache": "3.0.4"
   },
   "engines": {
     "node": ">= 12.4.0"
