@@ -11,13 +11,8 @@ import { Crypto } from '@peculiar/webcrypto';
 before((done) => {
   chai.should();
   chai.use(chaiAsPromised);
-
-  // let nodeLocalStorage = require('node-localstorage');
-  // let LocalStorage = nodeLocalStorage.LocalStorage;
-
-  // global['localStorage'] = new LocalStorage('./tmp/localstorage');
-  // global['sessionStorage'] = new LocalStorage('./tmp/sessionstorage');
   global.crypto = new Crypto();
+  global.window.crypto = global.crypto;
   done();
 });
 
@@ -37,17 +32,21 @@ function createClient(config: Object = {}): EtherealSecretsClient {
 
 describe('Ethereal Secrets Client', () => {
   it('should return null if item does not exist', () => {
-    let sut: EtherealSecretsClient = createClient({ storage: localStorage });
+    let sut: EtherealSecretsClient = createClient({
+      storage: window.localStorage,
+    });
     return sut.getLocal('foo' + Math.random().toString(36).substring(7)).should
       .eventually.be.fulfilled.and.to.be.null;
   });
 
   it('should save to local storage if requested', () => {
-    let sut: EtherealSecretsClient = createClient({ storage: localStorage });
+    let sut: EtherealSecretsClient = createClient({
+      storage: window.localStorage,
+    });
     return sut
       .saveLocal('foo', 'bar')
       .should.eventually.be.fulfilled.and.then(() => {
-        return chai.expect(localStorage.getItem('foo')).to.not.be.null;
+        return chai.expect(window.localStorage.getItem('foo')).to.not.be.null;
       });
   });
 
@@ -56,7 +55,7 @@ describe('Ethereal Secrets Client', () => {
     return sut
       .saveLocal('foo', 'bar')
       .should.eventually.be.fulfilled.and.then(() => {
-        return chai.expect(sessionStorage.getItem('foo')).to.not.be.null;
+        return chai.expect(window.sessionStorage.getItem('foo')).to.not.be.null;
       });
   });
 
@@ -65,7 +64,9 @@ describe('Ethereal Secrets Client', () => {
     return sut
       .saveLocal('foo', 'bar')
       .should.eventually.be.fulfilled.and.then(() => {
-        return chai.expect(sessionStorage.getItem('foo')).to.not.contain('bar');
+        return chai
+          .expect(window.sessionStorage.getItem('foo'))
+          .to.not.contain('bar');
       });
   });
 

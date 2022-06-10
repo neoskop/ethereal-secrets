@@ -1,4 +1,3 @@
-import { decrypt, encrypt } from 'sjcl';
 import * as request from 'superagent';
 import { agent, SuperAgent, SuperAgentRequest } from 'superagent';
 
@@ -26,17 +25,104 @@ export class EtherealSecretsClient {
   private _agent: SuperAgent<SuperAgentRequest>;
 
   constructor(config: EtherealSecretsClientConfig) {
-    this._storage = config?.storage || sessionStorage;
+    this._storage = config?.storage || window.sessionStorage;
     this._cacheKey = config?.cacheKey || false;
     this._endpoint = config.endpoint.endsWith('/')
       ? config.endpoint
       : config.endpoint + '/';
+    this._agent = agent();
+  }
 
-    if (typeof window !== 'undefined') {
-      this._agent = request;
-    } else {
-      this._agent = agent();
-    }
+  private fromBase64(data: string): Uint8Array {
+    return new Uint8Array(
+      window
+        .atob(data)
+        .split('')
+        .map(function (c) {
+          return c.charCodeAt(0);
+        })
+    );
+  }
+
+  private toBase64(data: Uint8Array): string {
+    return window.btoa(String.fromCharCode.apply(null, data));
+  }
+
+  private typedArrayToBuffer(array: Uint8Array): ArrayBuffer {
+    return array.buffer.slice(
+      array.byteOffset,
+      array.byteLength + array.byteOffset
+    );
+  }
+
+  private async decrypt(secret: string, cipherText: string): Promise<string> {
+    const encryptedObj = JSON.parse(cipherText);
+    const iv = this.fromBase64(encryptedObj.iv);
+    const salt = this.fromBase64(encryptedObj.salt);
+    const data = this.typedArrayToBuffer(
+      this.fromBase64(encryptedObj.encrypted)
+    );
+    const additionalData = this.fromBase64(encryptedObj.additionalData);
+    const key = await this.deriveKey(secret, salt);
+    return new TextDecoder('utf8').decode(
+      await window.crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv,
+          tagLength: 128,
+          additionalData,
+        },
+        key,
+        data
+      )
+    );
+  }
+
+  private async encrypt(secret: string, clearText: string): Promise<string> {
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+    const additionalData = window.crypto.getRandomValues(new Uint8Array(16));
+    const data = new TextEncoder().encode(clearText);
+    const key = await this.deriveKey(secret, salt);
+    const encrypted = await window.crypto.subtle.encrypt(
+      {
+        name: 'AES-GCM',
+        iv,
+        tagLength: 128,
+        additionalData,
+      },
+      key,
+      data
+    );
+    return JSON.stringify({
+      encrypted: this.toBase64(new Uint8Array(encrypted)),
+      salt: this.toBase64(salt),
+      iv: this.toBase64(iv),
+      additionalData: this.toBase64(additionalData),
+    });
+  }
+
+  private async deriveKey(secret: string, salt: Uint8Array) {
+    const enc = new TextEncoder();
+    const keyMaterial = await window.crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret),
+      'PBKDF2',
+      false,
+      ['deriveBits', 'deriveKey']
+    );
+    return window.crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt,
+        iterations: 100_000,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      true,
+      ['encrypt', 'decrypt']
+    );
   }
 
   public getLocal(key: string): Promise<string | null> {
@@ -53,64 +139,60 @@ export class EtherealSecretsClient {
     this._storage.removeItem(key);
   }
 
-  public saveLocal(key: string, clearText: string): Promise<void> {
-    return this.encryptClearText(clearText).then((cipherText) => {
-      if (cipherText !== null) {
-        this._storage.setItem(key, cipherText);
-      }
-      return Promise.resolve();
-    });
+  public async saveLocal(key: string, clearText: string): Promise<void> {
+    const cipherText = await this.encryptClearText(clearText);
+    if (cipherText !== null) {
+      this._storage.setItem(key, cipherText);
+    }
+    return Promise.resolve();
   }
 
-  public getRemote(fragmentIdentifier: string): Promise<RemoteRetrieveResult> {
+  public async getRemote(
+    fragmentIdentifier: string
+  ): Promise<RemoteRetrieveResult> {
     try {
       const keys = this.parseFragmentIdentifier(fragmentIdentifier);
-      return this._agent
+      const res = await this._agent
         .get(this._endpoint + keys.remoteKey)
-        .accept('application/json')
-        .then((res) => {
-          if (!res.body.data) {
-            return Promise.reject('The server did not answer with any data');
-          }
+        .accept('application/json');
+      if (!res.body.data) {
+        return Promise.reject('The server did not answer with any data');
+      }
+      try {
+        const clearText = await this.decrypt(keys.localKey, res.body.data);
 
-          try {
-            const clearText = decrypt(keys.localKey, res.body.data);
+        const result: RemoteRetrieveResult = {
+          clearText: clearText,
+        };
 
-            const result: RemoteRetrieveResult = {
-              clearText: clearText,
-            };
+        if (res.body.expiryDate) {
+          result.expiryDate = new Date(res.body.expiryDate);
+        }
 
-            if (res.body.expiryDate) {
-              result.expiryDate = new Date(res.body.expiryDate);
-            }
-
-            return Promise.resolve(result);
-          } catch (err) {
-            return Promise.reject(err.message);
-          }
-        });
+        return Promise.resolve(result);
+      } catch (err) {
+        return Promise.reject(err.message);
+      }
     } catch (err) {
       return Promise.reject(err.message);
     }
   }
 
-  public removeRemote(fragmentIdentifier: string): Promise<void> {
+  public async removeRemote(fragmentIdentifier: string): Promise<void> {
     try {
       const keys = this.parseFragmentIdentifier(fragmentIdentifier);
-      return this._agent
+      await this._agent
         .del(this._endpoint + keys.remoteKey)
-        .accept('application/json')
-        .then(() => {
-          return Promise.resolve();
-        });
+        .accept('application/json');
+      return await Promise.resolve();
     } catch (err) {
       return Promise.reject(err.message);
     }
   }
 
-  public saveRemote(clearText: string): Promise<RemoteSaveResult> {
+  public async saveRemote(clearText: string): Promise<RemoteSaveResult> {
     const secret = this.generateLocalSecret();
-    const cipherText = encrypt(secret, clearText);
+    const cipherText = await this.encrypt(secret, clearText);
 
     return this._agent
       .post(this._endpoint)
@@ -173,25 +255,17 @@ export class EtherealSecretsClient {
     );
   }
 
-  private decryptCipherText(cipherText: string): Promise<string | null> {
-    return this.retrieveRemoteSecret().then((secret) => {
-      try {
-        const clearText = decrypt(secret, cipherText);
-        return Promise.resolve(clearText);
-      } catch (err) {
-        return Promise.reject(err.message);
-      }
-    });
+  private async decryptCipherText(cipherText: string): Promise<string | null> {
+    const secret = await this.retrieveRemoteSecret();
+    return this.decrypt(secret, cipherText);
   }
 
-  private encryptClearText(value: string): Promise<string | null> {
-    return this.retrieveRemoteSecret().then((secret) => {
-      const cipherText = encrypt(secret, value);
-      return Promise.resolve(cipherText.toString());
-    });
+  private async encryptClearText(value: string): Promise<string | null> {
+    const secret = await this.retrieveRemoteSecret();
+    return this.encrypt(secret, value);
   }
 
-  private retrieveRemoteSecret(): Promise<string> {
+  private async retrieveRemoteSecret(): Promise<string> {
     if (this._key != null) {
       return Promise.resolve(this._key);
     }

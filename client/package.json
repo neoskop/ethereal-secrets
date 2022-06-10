@@ -12,16 +12,14 @@
     "clean": "rimraf ./dist",
     "tsc": "tsc -p .",
     "build": "npm run clean; npm run tsc",
-    "start": "mocha  -w --inspect=0.0.0.0:9229 -r ts-node/register -r jsdom-global -r mock-local-storage src/test/*.ts",
-    "test": "nyc --reporter=text mocha -r ts-node/register -r jsdom-global -r mock-local-storage src/test/*.ts"
+    "start": "mocha  -w --inspect=0.0.0.0:9229 -r ts-node/register -r jsdom-global/register -r mock-local-storage src/test/*.ts",
+    "test": "nyc -v --reporter=text mocha -r ts-node/register -r jsdom-global/register -r mock-local-storage src/test/*.ts"
   },
   "devDependencies": {
     "@peculiar/webcrypto": "1.4.0",
-    "@types/bluebird": "3.5.36",
     "@types/chai": "4.3.1",
     "@types/chai-as-promised": "7.1.5",
     "@types/mocha": "9.1.1",
-    "@types/sjcl": "1.0.30",
     "@types/superagent": "4.1.15",
     "chai": "4.3.6",
     "chai-as-promised": "7.1.1",
@@ -34,12 +32,10 @@
     "nyc": "15.1.0",
     "prettier": "2.6.2",
     "rimraf": "3.0.2",
-    "ts-node": "10.7.0",
+    "ts-node": "10.8.1",
     "typescript": "4.7.3"
   },
   "dependencies": {
-    "bluebird": "3.7.2",
-    "sjcl": "1.0.8",
     "superagent": "7.1.6"
   },
   "nyc": {
