@@ -45,7 +45,16 @@ export class EtherealSecretsClient {
   }
 
   private toBase64(data: Uint8Array): string {
-    return window.btoa(String.fromCharCode.apply(null, data));
+    const chunkSize = 0x1000;
+    const chunks = [];
+
+    for (let i = 0; i < data.length; i += chunkSize) {
+      chunks.push(
+        String.fromCharCode.apply(null, data.subarray(i, i + chunkSize))
+      );
+    }
+
+    return window.btoa(chunks.join(''));
   }
 
   private typedArrayToBuffer(array: Uint8Array): ArrayBuffer {

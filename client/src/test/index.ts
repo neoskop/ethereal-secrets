@@ -11,8 +11,12 @@ import { Crypto } from '@peculiar/webcrypto';
 before((done) => {
   chai.should();
   chai.use(chaiAsPromised);
-  global.crypto = new Crypto();
-  global.window.crypto = global.crypto;
+  Object.defineProperty(global, 'crypto', {
+    value: new Crypto(),
+  });
+  Object.defineProperty(window, 'crypto', {
+    value: new Crypto(),
+  });
   done();
 });
 
@@ -155,5 +159,15 @@ describe('Ethereal Secrets Client', () => {
             .rejected;
         });
       });
+  });
+
+  it('should allow storage of large inputs', () => {
+    let sut: EtherealSecretsClient = createClient();
+    const randomValues = new Uint8Array(200_000);
+    window.crypto.getRandomValues(randomValues);
+    const bigInput = Array.from(randomValues, (dec) => {
+      return dec.toString(16).padStart(2, '0');
+    }).join('');
+    return sut.saveLocal('foo', bigInput).should.eventually.be.fulfilled;
   });
 });
