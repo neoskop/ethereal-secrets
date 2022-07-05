@@ -1,4 +1,3 @@
-import * as request from 'superagent';
 import { agent, SuperAgent, SuperAgentRequest } from 'superagent';
 
 export interface EtherealSecretsClientConfig {
