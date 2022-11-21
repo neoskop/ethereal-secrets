@@ -27,7 +27,7 @@
     "jsdom-global": "3.0.2",
     "mock-local-storage": "1.1.23",
     "node-localstorage": "2.2.1",
-    "parse5": "7.1.1",
+    "parse5": "7.1.2",
     "prettier": "2.7.1",
     "rimraf": "3.0.2",
     "ts-jest": "28.0.8",
