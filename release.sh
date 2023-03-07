@@ -17,8 +17,8 @@ INCREMENT=$1
 
 update_package() {
     cd $1
-    npm run build &>/dev/null
-    npm version $INCREMENT --no-git-tag-version  &>/dev/null
+    npm run build
+    npm version $INCREMENT --no-git-tag-version
     npm publish
     cd - &>/dev/null
 }
