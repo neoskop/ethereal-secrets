@@ -1,8 +1,7 @@
 import * as session from 'express-session';
 import UuidStatic = require('uuid');
 import * as bodyParser from 'body-parser';
-import * as RedisStore from 'connect-redis';
-import { RedisStoreOptions } from 'connect-redis';
+const RedisStore = require('connect-redis').default;
 import * as crypto from 'crypto';
 import * as deepmerge from 'deepmerge';
 import {
@@ -13,6 +12,7 @@ import {
 } from 'express-serve-static-core';
 import * as ioredis from 'ioredis';
 import * as Validator from 'validator';
+import { RedisOptions } from 'ioredis';
 
 export interface EtherealSecretsConfig {
   local?: {
@@ -32,7 +32,7 @@ export interface EtherealSecretsConfig {
     maxLength?: number;
   };
   trustProxy?: boolean;
-  redis?: RedisStoreOptions;
+  redis?: { client?: any } & RedisOptions;
 }
 
 const parseUuid = (
@@ -126,7 +126,7 @@ const createRemotelyEncrypted = function (
             throw err;
           }
 
-          var expiryDate = new Date();
+          const expiryDate = new Date();
           expiryDate.setSeconds(expiryDate.getSeconds() + ttl);
 
           res.status(201).send({
@@ -174,9 +174,13 @@ export function etherealSecrets(
     },
   );
 
-  const redisConfig: RedisStoreOptions = Object.assign({}, config.redis, {
-    ttl: mergedConfig.local.ttl,
-  });
+  const redisConfig: { client?: any } & RedisOptions = Object.assign(
+    {},
+    config.redis,
+    {
+      ttl: mergedConfig.local.ttl,
+    },
+  );
 
   const redisClient: ioredis.Redis =
     (redisConfig.client as ioredis.Redis) || new ioredis.default(redisConfig);
