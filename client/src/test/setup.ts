@@ -1,7 +1,12 @@
-import { Crypto } from '@peculiar/webcrypto';
+import * as crypto from 'crypto';
+
 import { TextEncoder, TextDecoder } from 'util';
 
-global.crypto = new Crypto();
-window.crypto = global.crypto;
+Object.defineProperty(global.self, 'crypto', {
+  value: {
+    subtle: crypto.webcrypto.subtle,
+    getRandomValues: (arr: any) => crypto.randomBytes(arr.length),
+  },
+});
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
