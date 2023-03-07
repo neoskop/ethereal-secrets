@@ -25,10 +25,12 @@ update_package() {
 
 update_package client
 update_package middleware
-update_package server
 version=`cat middleware/package.json | jq -r .version`
 cd server
 npm i @neoskop/ethereal-secrets-middleware@$version
+cd -
+update_package server
+cd server
 docker build -t neoskop/ethereal-secrets-server:latest -t neoskop/ethereal-secrets-server:$version .
 docker push neoskop/ethereal-secrets-server:latest
 docker push neoskop/ethereal-secrets-server:$version
