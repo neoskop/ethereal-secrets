@@ -20,7 +20,7 @@
     "typescript": "4.9.5"
   },
   "dependencies": {
-    "@neoskop/ethereal-secrets-middleware": "3.0.0",
+    "@neoskop/ethereal-secrets-middleware": "3.0.1",
     "express": "4.18.2",
     "helmet": "6.0.1",
     "nocache": "3.0.4"
