@@ -1,7 +1,6 @@
 import * as session from 'express-session';
 import UuidStatic = require('uuid');
 import * as bodyParser from 'body-parser';
-const RedisStore = require('connect-redis').default;
 import * as crypto from 'crypto';
 import * as deepmerge from 'deepmerge';
 import {
@@ -13,6 +12,7 @@ import {
 import * as ioredis from 'ioredis';
 import * as Validator from 'validator';
 import { RedisOptions } from 'ioredis';
+import RedisStore from 'connect-redis';
 
 export interface EtherealSecretsConfig {
   local?: {
@@ -186,7 +186,7 @@ export function etherealSecrets(
     (redisConfig.client as ioredis.Redis) || new ioredis.default(redisConfig);
 
   const sessionConfig: session.SessionOptions = {
-    store: new (RedisStore(session))({
+    store: new RedisStore({
       client: redisClient,
       ttl: mergedConfig.local.ttl,
     }),
