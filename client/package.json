@@ -17,7 +17,7 @@
     "test": "jest"
   },
   "devDependencies": {
-    "@peculiar/webcrypto": "1.4.2",
+    "@peculiar/webcrypto": "1.4.3",
     "@types/jest": "29.5.0",
     "@types/superagent": "4.1.16",
     "concurrently": "7.6.0",
