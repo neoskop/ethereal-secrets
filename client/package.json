@@ -25,7 +25,7 @@
     "jest-environment-jsdom": "29.5.0",
     "jsdom": "21.1.2",
     "jsdom-global": "3.0.2",
-    "mock-local-storage": "1.1.23",
+    "mock-local-storage": "1.1.24",
     "node-localstorage": "2.2.1",
     "parse5": "7.1.2",
     "prettier": "2.8.8",
