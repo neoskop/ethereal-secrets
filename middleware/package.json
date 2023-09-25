@@ -28,7 +28,7 @@
     "@types/ioredis": "4.28.10",
     "@types/mocha": "10.0.1",
     "@types/redis": "4.0.10",
-    "@types/sinon": "10.0.16",
+    "@types/sinon": "10.0.17",
     "@types/uuid": "9.0.4",
     "@types/validator": "13.11.1",
     "chai": "4.3.8",
