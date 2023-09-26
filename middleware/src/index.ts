@@ -40,7 +40,7 @@ const parseUuid = (
   res: Response,
   uuidConsumer: (uuid?: string) => void,
 ) => {
-  const requestUuid = req.path.replace(/^\/|\/$/g, '');
+  const requestUuid = req.path.replace(/(^\/|\/$)/g, '');
 
   if (Validator.default.isUUID(requestUuid)) {
     uuidConsumer(requestUuid);
@@ -68,6 +68,7 @@ const handleLocalEncryption = (
 const readRemotelyEncrypted = async (
   redisClient: ioredis.Redis,
   uuid: string,
+  req: Request,
   res: Response,
 ) => {
   const key = 'remote:' + uuid;
@@ -76,6 +77,13 @@ const readRemotelyEncrypted = async (
   if (data == null) {
     res.sendStatus(404);
   } else {
+    try {
+      await handleSecondFactor(uuid, redisClient, req);
+    } catch (err) {
+      res.sendStatus(401);
+      return;
+    }
+
     const ttl = await redisClient.ttl(key);
 
     if (ttl < 0) {
@@ -91,66 +99,107 @@ const readRemotelyEncrypted = async (
   }
 };
 
-const createRemotelyEncrypted = function (
+const createRemotelyEncrypted = async (
   req: Request,
   res: Response,
   redisClient: ioredis.Redis,
   config: { defaultTtl?: number; maxTtl?: number; maxLength?: number },
-) {
-  bodyParser.json()(req, res, () => {
-    if (
-      !req.body.hasOwnProperty('data') ||
-      req.body.data.length > config.maxLength
-    ) {
-      res.sendStatus(400);
-    } else {
-      const uuid = UuidStatic.v4();
-      let ttl = config.defaultTtl;
+) => {
+  const { data, ttl, secondFactor } = req.body;
+  const { maxLength, defaultTtl, maxTtl } = config;
 
-      if (req.body.hasOwnProperty('ttl')) {
-        const requestedTtl = parseInt(req.body.ttl);
+  if (!data || data.length > maxLength) {
+    res.sendStatus(400);
+    return;
+  }
 
-        if (requestedTtl > 0 && requestedTtl <= config.maxTtl) {
-          ttl = requestedTtl;
-        }
-      }
+  const uuid = UuidStatic.v4();
+  let expiryDate = new Date();
+  let redisKey = `remote:${uuid}`;
 
-      const redisKey = 'remote:' + uuid;
-      redisClient.set(redisKey, req.body.data, (err: Error) => {
-        if (err) {
-          throw err;
-        }
+  let expiration = defaultTtl;
+  if (ttl && ttl <= maxTtl) {
+    expiration = ttl;
+  }
 
-        redisClient.expire(redisKey, ttl, (err: Error) => {
-          if (err) {
-            throw err;
-          }
+  if (secondFactor) {
+    await storeSecondFactor(uuid, secondFactor, expiration, redisClient);
+  }
 
-          const expiryDate = new Date();
-          expiryDate.setSeconds(expiryDate.getSeconds() + ttl);
+  try {
+    await redisClient.set(redisKey, data);
+    await redisClient.expire(redisKey, expiration);
 
-          res.status(201).send({
-            key: uuid,
-            expiryDate: expiryDate.toUTCString(),
-          });
-        });
-      });
-    }
-  });
+    expiryDate.setSeconds(expiryDate.getSeconds() + expiration);
+
+    res.status(201).send({
+      key: uuid,
+      expiryDate: expiryDate.toUTCString(),
+    });
+  } catch (err) {
+    console.error(err);
+    res.sendStatus(500);
+  }
 };
+
+async function handleSecondFactor(
+  uuid: string,
+  redisClient: ioredis.Redis,
+  req: Request,
+) {
+  if (await hasSecondFactor(uuid, redisClient)) {
+    const storedSecondFactor = await getSecondFactor(uuid, redisClient);
+    const secondFactor = req.query.secondFactor;
+    if (Array.isArray(secondFactor) || secondFactor !== storedSecondFactor) {
+      throw new Error('Invalid second factor');
+    }
+  }
+}
+
+async function hasSecondFactor(
+  uuid: string,
+  redisClient: ioredis.Redis,
+): Promise<boolean> {
+  const redisKey = `remote:${uuid}:secondFactor`;
+  return (await redisClient.exists(redisKey)) > 0;
+}
+
+async function storeSecondFactor(
+  uuid: string,
+  secondFactor: any,
+  expiration: number,
+  redisClient: ioredis.Redis,
+) {
+  const redisKey = `remote:${uuid}:secondFactor`;
+  await redisClient.set(redisKey, secondFactor);
+  await redisClient.expire(redisKey, expiration);
+}
+
+async function getSecondFactor(uuid: string, redisClient: ioredis.Redis) {
+  const redisKey = `remote:${uuid}:secondFactor`;
+  return await redisClient.get(redisKey);
+}
 
 async function removeRemotelyEncrypted(
   redisClient: ioredis.Redis,
   uuid: string,
+  req: Request,
   res: Response,
 ) {
+  try {
+    await handleSecondFactor(uuid, redisClient, req);
+  } catch (err) {
+    res.sendStatus(401);
+    return;
+  }
+  await redisClient.del(`remote:${uuid}:secondFactor`);
   await redisClient.del('remote:' + uuid);
   res.sendStatus(200);
 }
 
 export function etherealSecrets(
   config: EtherealSecretsConfig,
-): (req: Request, res: Response, next: NextFunction) => void {
+): RequestHandler[] {
   const mergedConfig = deepmerge(
     {
       local: {
@@ -174,16 +223,8 @@ export function etherealSecrets(
     },
   );
 
-  const redisConfig: { client?: any } & RedisOptions = Object.assign(
-    {},
-    config.redis,
-    {
-      ttl: mergedConfig.local.ttl,
-    },
-  );
-
   const redisClient: ioredis.Redis =
-    (redisConfig.client as ioredis.Redis) || new ioredis.default(redisConfig);
+    (config.redis.client as ioredis.Redis) || new ioredis.default(config.redis);
 
   const sessionConfig: session.SessionOptions = {
     store: new RedisStore({
@@ -194,48 +235,49 @@ export function etherealSecrets(
     secret: mergedConfig.local.cookie.secret,
     resave: false,
     saveUninitialized: false,
-    cookie: Object.assign(
-      {
-        httpOnly: true,
-        maxAge: mergedConfig.local.ttl * 1000,
-        path: '/',
-        secure: false,
-        sameSite: 'strict',
-      },
-      mergedConfig.local.cookie,
-    ),
+    cookie: {
+      httpOnly: true,
+      maxAge: mergedConfig.local.ttl * 1000,
+      path: '/',
+      secure: false,
+      sameSite: 'strict',
+      ...mergedConfig.local.cookie,
+    },
   };
 
   const sessionHandler: RequestHandler = session(sessionConfig);
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (mergedConfig.remote.enabled) {
-      switch (req.method) {
-        case 'GET':
-          if (req.path === '/') {
-            return handleLocalEncryption(sessionHandler, req, res);
-          } else {
-            return parseUuid(req, res, (uuid) =>
-              readRemotelyEncrypted(redisClient, uuid, res),
+  return [
+    bodyParser.json(),
+    (req: Request, res: Response, next: NextFunction) => {
+      if (mergedConfig.remote.enabled) {
+        switch (req.method) {
+          case 'GET':
+            if (req.path === '/') {
+              return handleLocalEncryption(sessionHandler, req, res);
+            } else {
+              return parseUuid(req, res, (uuid) =>
+                readRemotelyEncrypted(redisClient, uuid, req, res),
+              );
+            }
+
+          case 'POST':
+            return createRemotelyEncrypted(
+              req,
+              res,
+              redisClient,
+              mergedConfig.remote,
             );
-          }
 
-        case 'POST':
-          return createRemotelyEncrypted(
-            req,
-            res,
-            redisClient,
-            mergedConfig.remote,
-          );
-
-        case 'DELETE':
-          return parseUuid(req, res, (uuid) =>
-            removeRemotelyEncrypted(redisClient, uuid, res),
-          );
+          case 'DELETE':
+            return parseUuid(req, res, (uuid) =>
+              removeRemotelyEncrypted(redisClient, uuid, req, res),
+            );
+        }
+      } else {
+        return handleLocalEncryption(sessionHandler, req, res);
       }
-    } else {
-      return handleLocalEncryption(sessionHandler, req, res);
-    }
 
-    next();
-  };
+      next();
+    },
+  ];
 }

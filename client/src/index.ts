@@ -56,22 +56,14 @@ export class EtherealSecretsClient {
     return window.btoa(chunks.join(''));
   }
 
-  private typedArrayToBuffer(array: Uint8Array): ArrayBuffer {
-    return array.buffer.slice(
-      array.byteOffset,
-      array.byteLength + array.byteOffset
-    );
-  }
-
   private async decrypt(secret: string, cipherText: string): Promise<string> {
     const encryptedObj = JSON.parse(cipherText);
     const iv = this.fromBase64(encryptedObj.iv);
     const salt = this.fromBase64(encryptedObj.salt);
-    const data = this.typedArrayToBuffer(
-      this.fromBase64(encryptedObj.encrypted)
-    );
+    const data = this.fromBase64(encryptedObj.encrypted);
     const additionalData = this.fromBase64(encryptedObj.additionalData);
     const key = await this.deriveKey(secret, salt);
+
     return new TextDecoder('utf8').decode(
       await window.crypto.subtle.decrypt(
         {
@@ -133,14 +125,14 @@ export class EtherealSecretsClient {
     );
   }
 
-  public getLocal(key: string): Promise<string | null> {
+  public async getLocal(key: string): Promise<string | null> {
     const cipherText = this._storage.getItem(key);
 
-    if (!!cipherText) {
+    if (cipherText) {
       return this.decryptCipherText(cipherText);
     }
 
-    return Promise.resolve(null);
+    return null;
   }
 
   public removeLocal(key: string) {
@@ -149,101 +141,106 @@ export class EtherealSecretsClient {
 
   public async saveLocal(key: string, clearText: string): Promise<void> {
     const cipherText = await this.encryptClearText(clearText);
+
     if (cipherText !== null) {
       this._storage.setItem(key, cipherText);
     }
-    return Promise.resolve();
   }
 
   public async getRemote(
-    fragmentIdentifier: string
+    fragmentIdentifier: string,
+    options: { secondFactor?: string } = {}
   ): Promise<RemoteRetrieveResult> {
     try {
       const keys = this.parseFragmentIdentifier(fragmentIdentifier);
+      const { secondFactor } = options;
       const res = await this._agent
-        .get(this._endpoint + keys.remoteKey)
+        .get(
+          this._endpoint +
+            keys.remoteKey +
+            (secondFactor ? `?secondFactor=${secondFactor}` : '')
+        )
         .accept('application/json');
+
       if (!res.body.data) {
-        return Promise.reject('The server did not answer with any data');
+        throw new Error('The server did not answer with any data');
       }
-      try {
-        const clearText = await this.decrypt(keys.localKey, res.body.data);
 
-        const result: RemoteRetrieveResult = {
-          clearText: clearText,
-        };
+      const clearText = await this.decrypt(keys.localKey, res.body.data);
+      const result: RemoteRetrieveResult = {
+        clearText: clearText,
+      };
 
-        if (res.body.expiryDate) {
-          result.expiryDate = new Date(res.body.expiryDate);
-        }
-
-        return Promise.resolve(result);
-      } catch (err) {
-        return Promise.reject(err.message);
+      if (res.body.expiryDate) {
+        result.expiryDate = new Date(res.body.expiryDate);
       }
+
+      return result;
     } catch (err) {
-      return Promise.reject(err.message);
+      throw new Error(err.message);
     }
   }
 
-  public async removeRemote(fragmentIdentifier: string): Promise<void> {
+  public async removeRemote(
+    fragmentIdentifier: string,
+    options: { secondFactor?: string } = {}
+  ): Promise<void> {
+    const keys = this.parseFragmentIdentifier(fragmentIdentifier);
+    const { secondFactor } = options;
+    await this._agent
+      .del(
+        this._endpoint +
+          keys.remoteKey +
+          (secondFactor ? `?secondFactor=${secondFactor}` : '')
+      )
+      .accept('application/json');
+  }
+
+  public async saveRemote(
+    clearText: string,
+    options: { secondFactor?: string } = {}
+  ): Promise<RemoteSaveResult> {
     try {
-      const keys = this.parseFragmentIdentifier(fragmentIdentifier);
-      await this._agent
-        .del(this._endpoint + keys.remoteKey)
+      const secret = this.generateLocalSecret();
+      const cipherText = await this.encrypt(secret, clearText);
+      const { secondFactor } = options;
+
+      const res = await this._agent
+        .post(this._endpoint)
+        .send({ data: cipherText.toString(), secondFactor })
         .accept('application/json');
-      return await Promise.resolve();
+
+      if (!res.body.hasOwnProperty('key')) {
+        throw new Error('The server did not answer with a key');
+      }
+
+      const result: RemoteSaveResult = {
+        fragmentIdentifier: res.body.key + ';' + secret,
+      };
+
+      if (res.body.hasOwnProperty('expiryDate')) {
+        result.expiryDate = new Date(res.body.expiryDate);
+      }
+
+      return result;
     } catch (err) {
-      return Promise.reject(err.message);
+      throw new Error(err.message);
     }
-  }
-
-  public async saveRemote(clearText: string): Promise<RemoteSaveResult> {
-    const secret = this.generateLocalSecret();
-    const cipherText = await this.encrypt(secret, clearText);
-
-    return this._agent
-      .post(this._endpoint)
-      .send({ data: cipherText.toString() })
-      .accept('application/json')
-      .then((res) => {
-        if (!res.body.hasOwnProperty('key')) {
-          return Promise.reject('The server did not answer with a key');
-        }
-
-        const result: RemoteSaveResult = {
-          fragmentIdentifier: res.body.key + ';' + secret,
-        };
-
-        if (res.body.hasOwnProperty('expiryDate')) {
-          result.expiryDate = new Date(res.body.expiryDate);
-        }
-
-        return Promise.resolve(result);
-      })
-      .catch((err) => {
-        return Promise.reject(err.message);
-      });
   }
 
   private parseFragmentIdentifier(fragmentIdentifier: string): {
     remoteKey: string;
     localKey: string;
   } {
-    if (
-      !fragmentIdentifier.match(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12};[0-9a-f]{64}$/
-      )
-    ) {
+    const regex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12};[0-9a-f]{64}$/;
+
+    if (!regex.test(fragmentIdentifier)) {
       throw new Error('Fragment identifier is invalid');
     }
 
-    const fragmentParts = fragmentIdentifier.split(';');
-
-    return {
-      remoteKey: fragmentParts[0],
-      localKey: fragmentParts[1],
-    };
+    const [remoteKey, localKey] = fragmentIdentifier.split(';');
+    return { remoteKey, localKey };
   }
 
   private generateLocalSecret(): string {
@@ -275,26 +272,26 @@ export class EtherealSecretsClient {
 
   private async retrieveRemoteSecret(): Promise<string> {
     if (this._key != null) {
-      return Promise.resolve(this._key);
+      return this._key;
     }
 
-    return this._agent
-      .get(this._endpoint)
-      .withCredentials()
-      .accept('application/json')
-      .then((res) => {
-        if (!res.body.key) {
-          return Promise.reject('The server did not answer with a key');
-        }
+    try {
+      const res = await this._agent
+        .get(this._endpoint)
+        .withCredentials()
+        .accept('application/json');
 
-        if (this._cacheKey) {
-          this._key = res.body.key;
-        }
+      if (!res.body.key) {
+        throw new Error('The server did not answer with a key');
+      }
 
-        return Promise.resolve(res.body.key as string);
-      })
-      .catch((err) => {
-        return Promise.reject(err.message);
-      });
+      if (this._cacheKey) {
+        this._key = res.body.key;
+      }
+
+      return res.body.key as string;
+    } catch (err) {
+      throw new Error(err.message);
+    }
   }
 }

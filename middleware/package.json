@@ -16,7 +16,7 @@
     "clean": "rimraf ./dist",
     "tsc": "tsc -p .",
     "build": "npm run clean; npm run tsc",
-    "start": "mocha -w --inspect=0.0.0.0:9229 --require ts-node/register src/test/**/*.ts",
+    "start": "mocha -w --extension ts --inspect=0.0.0.0:9229 --require ts-node/register src/*.ts src/test/*.ts",
     "test": "nyc --reporter=text mocha --require ts-node/register src/test/**/*.ts"
   },
   "devDependencies": {
@@ -30,7 +30,7 @@
     "@types/redis": "4.0.10",
     "@types/sinon": "10.0.17",
     "@types/uuid": "9.0.4",
-    "@types/validator": "13.11.1",
+    "@types/validator": "13.11.2",
     "chai": "4.3.8",
     "chai-http": "4.4.0",
     "chai-uuid": "1.0.6",
@@ -39,7 +39,7 @@
     "mocha": "10.2.0",
     "nyc": "15.1.0",
     "rimraf": "5.0.4",
-    "sinon": "15.2.0",
+    "sinon": "16.0.0",
     "ts-node": "10.9.1",
     "typescript": "5.2.2"
   },

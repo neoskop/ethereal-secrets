@@ -29,17 +29,17 @@ $ npm i --save @neoskop/ethereal-secrets-client
 to store a value `bar` under the key `foo` encrypted in the session storage:
 
 ```typescript
-let client = new EtherealSecretsClient({
-  endpoint: 'http://localhost:8080/secrets'
+const client = new EtherealSecretsClient({
+  endpoint: "http://localhost:8080/secrets",
 });
-client.setItem('foo', 'bar');
-client.getItem('foo'); // => bar
-client.removeItem('foo');
+await client.saveLocal("foo", "bar");
+await client.getLocal("foo"); // => bar
+await client.removeLocal("foo");
 ```
 
 ## Functionality
 
-_Ethereal Secrets_ can either be used to encrypt and store data locally ([local mode](#local-mode)) or to store encrypted data for later retrieval on the server ([remote mode](#remote-mode)). 
+_Ethereal Secrets_ can either be used to encrypt and store data locally ([local mode](#local-mode)) or to store encrypted data for later retrieval on the server ([remote mode](#remote-mode)).
 
 ### Local Mode
 

@@ -13,7 +13,7 @@
     "clean": "rimraf ./dist",
     "tsc": "tsc -p .",
     "build": "npm run clean; npm run tsc",
-    "start": "jest -w",
+    "start": "jest --watchAll",
     "test": "jest"
   },
   "devDependencies": {
@@ -46,7 +46,7 @@
       "json",
       "ts"
     ],
-    "rootDir": "src/test",
+    "rootDir": "src",
     "testRegex": ".spec.ts$",
     "transform": {
       ".+\\.(t|j)s$": "ts-jest"
@@ -54,7 +54,7 @@
     "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "setupFilesAfterEnv": [
-      "./setup.ts"
+      "./test/setup.ts"
     ]
   }
 }

@@ -1,6 +1,6 @@
-# Ethereal Secrets Client #
+# Ethereal Secrets Client
 
-## Usage ##
+## Usage
 
 To add the library to your project:
 
@@ -8,21 +8,47 @@ To add the library to your project:
 $ npm i --save @neoskop/ethereal-secrets-client
 ```
 
+### Local Mode
+
 to store a value `bar` under the key `foo` encrypted in the session storage:
 
 ```typescript
-let client = new EtherealSecretsClient({
-  endpoint: 'http://localhost:8080/secrets'
+const client = new EtherealSecretsClient({
+  endpoint: 'http://localhost:8080/secrets',
 });
-client.setItem('foo', 'bar');
-client.getItem('foo'); // => bar
-client.removeItem('foo');
+await client.saveLocal('foo', 'bar');
+await client.getLocal('foo'); // => bar
+await client.removeLocal('foo');
 ```
 
-## Test suite ##
+### Remote Mode
 
-To run integration tests in case you checked out the repository (awesome!):
+To store a value `bar` encrypted on the server:
+
+```typescript
+const client = new EtherealSecretsClient({
+  endpoint: 'http://localhost:8080/secrets',
+});
+const result = await client.saveRemote('foo', 'bar');
+await client.getRemote(result.fragmentIdentifier); // => bar
+await client.removeRemote(result.fragmentIdentifier);
+```
+
+To use a second factor:
+
+```typescript
+const client = new EtherealSecretsClient({
+  endpoint: 'http://localhost:8080/secrets',
+});
+const result = await client.saveRemote('foo', 'bar', { secondFactor: 'baz' });
+await client.getRemote(result.fragmentIdentifier, { secondFactor: 'baz' }); // => bar
+await client.removeRemote(result.fragmentIdentifier, { secondFactor: 'baz' });
+```
+
+## Test suite
+
+To run integration tests in this repository:
 
 ```sh
-$ docker pull neoskop/ethereal-secrets-server && docker-compose -f docker-compose.test.yml up --abort-on-container-exit --build
+$ docker-compose -f docker-compose.test.yml up --abort-on-container-exit --build
 ```
