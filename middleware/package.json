@@ -30,7 +30,7 @@
     "@types/redis": "4.0.10",
     "@types/sinon": "10.0.19",
     "@types/uuid": "9.0.5",
-    "@types/validator": "13.11.2",
+    "@types/validator": "13.11.3",
     "chai": "4.3.10",
     "chai-http": "4.4.0",
     "chai-uuid": "1.0.6",
