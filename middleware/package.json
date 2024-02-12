@@ -31,7 +31,7 @@
     "@types/sinon": "10.0.20",
     "@types/uuid": "9.0.8",
     "@types/validator": "13.11.9",
-    "chai": "4.4.1",
+    "chai": "5.1.0",
     "chai-http": "4.4.0",
     "chai-uuid": "1.0.6",
     "concurrently": "8.2.2",
