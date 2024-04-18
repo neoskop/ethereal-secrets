@@ -1,10 +1,9 @@
-version: "2.4"
 services:
   app:
     build: .
     command: npm start
     environment:
-      NODE_ENV: "development"
+      NODE_ENV: 'development'
     depends_on:
       - redis
     volumes:

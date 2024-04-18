@@ -1,12 +1,10 @@
-import * as crypto from 'crypto';
+import { webcrypto } from 'crypto';
 
 import { TextEncoder, TextDecoder } from 'util';
 
-Object.defineProperty(global.self, 'crypto', {
-  value: {
-    subtle: crypto.webcrypto.subtle,
-    getRandomValues: (arr: any) => crypto.randomBytes(arr.length),
-  },
+Object.defineProperty(globalThis, 'crypto', {
+  value: webcrypto,
 });
+
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;

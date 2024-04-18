@@ -1,9 +1,8 @@
-version: "2.5"
 services:
   sut:
     build: .
     environment:
-      NODE_ENV: "test"
+      NODE_ENV: 'test'
     depends_on:
       - server
   server:

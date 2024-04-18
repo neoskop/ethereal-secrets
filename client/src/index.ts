@@ -1,4 +1,4 @@
-import { agent, SuperAgent, SuperAgentRequest } from 'superagent';
+import axios from 'axios';
 
 export interface EtherealSecretsClientConfig {
   endpoint: string;
@@ -21,7 +21,6 @@ export class EtherealSecretsClient {
   private _endpoint: string;
   private _cacheKey: boolean;
   private _key: string;
-  private _agent: SuperAgent<SuperAgentRequest>;
 
   constructor(config: EtherealSecretsClientConfig) {
     this._storage = config?.storage || window.sessionStorage;
@@ -29,43 +28,22 @@ export class EtherealSecretsClient {
     this._endpoint = config.endpoint.endsWith('/')
       ? config.endpoint
       : config.endpoint + '/';
-    this._agent = agent();
-  }
-
-  private fromBase64(data: string): Uint8Array {
-    return new Uint8Array(
-      window
-        .atob(data)
-        .split('')
-        .map(function (c) {
-          return c.charCodeAt(0);
-        })
-    );
   }
 
   private toBase64(data: Uint8Array): string {
-    const chunkSize = 0x1000;
-    const chunks = [];
-
-    for (let i = 0; i < data.length; i += chunkSize) {
-      chunks.push(
-        String.fromCharCode.apply(null, data.subarray(i, i + chunkSize))
-      );
-    }
-
-    return window.btoa(chunks.join(''));
+    return Buffer.from(data).toString('base64');
   }
 
   private async decrypt(secret: string, cipherText: string): Promise<string> {
     const encryptedObj = JSON.parse(cipherText);
-    const iv = this.fromBase64(encryptedObj.iv);
-    const salt = this.fromBase64(encryptedObj.salt);
-    const data = this.fromBase64(encryptedObj.encrypted);
-    const additionalData = this.fromBase64(encryptedObj.additionalData);
+    const iv = Buffer.from(encryptedObj.iv, 'base64');
+    const salt = Buffer.from(encryptedObj.salt, 'base64');
+    const data = Buffer.from(encryptedObj.encrypted, 'base64');
+    const additionalData = Buffer.from(encryptedObj.additionalData, 'base64');
     const key = await this.deriveKey(secret, salt);
 
-    return new TextDecoder('utf8').decode(
-      await window.crypto.subtle.decrypt(
+    try {
+      const clearText = await window.crypto.subtle.decrypt(
         {
           name: 'AES-GCM',
           iv,
@@ -73,9 +51,12 @@ export class EtherealSecretsClient {
           additionalData,
         },
         key,
-        data
-      )
-    );
+        data,
+      );
+      return new TextDecoder('utf8').decode(clearText);
+    } catch (e) {
+      console.log(e);
+    }
   }
 
   private async encrypt(secret: string, clearText: string): Promise<string> {
@@ -92,13 +73,13 @@ export class EtherealSecretsClient {
         additionalData,
       },
       key,
-      data
+      data,
     );
     return JSON.stringify({
-      encrypted: this.toBase64(new Uint8Array(encrypted)),
-      salt: this.toBase64(salt),
-      iv: this.toBase64(iv),
-      additionalData: this.toBase64(additionalData),
+      encrypted: Buffer.from(new Uint8Array(encrypted)).toString('base64'),
+      salt: Buffer.from(salt).toString('base64'),
+      iv: Buffer.from(iv).toString('base64'),
+      additionalData: Buffer.from(additionalData).toString('base64'),
     });
   }
 
@@ -109,7 +90,7 @@ export class EtherealSecretsClient {
       enc.encode(secret),
       'PBKDF2',
       false,
-      ['deriveBits', 'deriveKey']
+      ['deriveBits', 'deriveKey'],
     );
     return window.crypto.subtle.deriveKey(
       {
@@ -121,7 +102,7 @@ export class EtherealSecretsClient {
       keyMaterial,
       { name: 'AES-GCM', length: 256 },
       true,
-      ['encrypt', 'decrypt']
+      ['encrypt', 'decrypt'],
     );
   }
 
@@ -149,77 +130,84 @@ export class EtherealSecretsClient {
 
   public async getRemote(
     fragmentIdentifier: string,
-    options: { secondFactor?: string } = {}
+    options: { secondFactor?: string } = {},
   ): Promise<RemoteRetrieveResult> {
-    try {
-      const keys = this.parseFragmentIdentifier(fragmentIdentifier);
-      const { secondFactor } = options;
-      const res = await this._agent
-        .get(
-          this._endpoint +
-            keys.remoteKey +
-            (secondFactor ? `?secondFactor=${secondFactor}` : '')
-        )
-        .accept('application/json');
+    const keys = this.parseFragmentIdentifier(fragmentIdentifier);
+    const { secondFactor } = options;
+    const res = await axios.get(
+      this._endpoint +
+        keys.remoteKey +
+        (secondFactor ? `?secondFactor=${secondFactor}` : ''),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    );
 
-      if (!res.body.data) {
-        throw new Error('The server did not answer with any data');
-      }
-
-      const clearText = await this.decrypt(keys.localKey, res.body.data);
-      const result: RemoteRetrieveResult = {
-        clearText: clearText,
-      };
-
-      if (res.body.expiryDate) {
-        result.expiryDate = new Date(res.body.expiryDate);
-      }
-
-      return result;
-    } catch (err) {
-      throw new Error(err.message);
+    if (!res.data.data) {
+      throw new Error('The server did not answer with any data');
     }
+
+    const clearText = await this.decrypt(keys.localKey, res.data.data);
+    const result: RemoteRetrieveResult = {
+      clearText: clearText,
+    };
+
+    if (res.data.expiryDate) {
+      result.expiryDate = new Date(res.data.expiryDate);
+    }
+
+    return result;
   }
 
   public async removeRemote(
     fragmentIdentifier: string,
-    options: { secondFactor?: string } = {}
+    options: { secondFactor?: string } = {},
   ): Promise<void> {
     const keys = this.parseFragmentIdentifier(fragmentIdentifier);
     const { secondFactor } = options;
-    await this._agent
-      .del(
-        this._endpoint +
-          keys.remoteKey +
-          (secondFactor ? `?secondFactor=${secondFactor}` : '')
-      )
-      .accept('application/json');
+    await axios.delete(
+      this._endpoint +
+        keys.remoteKey +
+        (secondFactor ? `?secondFactor=${secondFactor}` : ''),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    );
   }
 
   public async saveRemote(
     clearText: string,
-    options: { secondFactor?: string } = {}
+    options: { secondFactor?: string } = {},
   ): Promise<RemoteSaveResult> {
     try {
       const secret = this.generateLocalSecret();
       const cipherText = await this.encrypt(secret, clearText);
       const { secondFactor } = options;
 
-      const res = await this._agent
-        .post(this._endpoint)
-        .send({ data: cipherText.toString(), secondFactor })
-        .accept('application/json');
+      const res = await axios.post(
+        this._endpoint,
+        { data: cipherText.toString(), secondFactor },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      );
 
-      if (!res.body.hasOwnProperty('key')) {
+      if (!res.data.hasOwnProperty('key')) {
         throw new Error('The server did not answer with a key');
       }
 
       const result: RemoteSaveResult = {
-        fragmentIdentifier: res.body.key + ';' + secret,
+        fragmentIdentifier: res.data.key + ';' + secret,
       };
 
-      if (res.body.hasOwnProperty('expiryDate')) {
-        result.expiryDate = new Date(res.body.expiryDate);
+      if (res.data.hasOwnProperty('expiryDate')) {
+        result.expiryDate = new Date(res.data.expiryDate);
       }
 
       return result;
@@ -256,12 +244,13 @@ export class EtherealSecretsClient {
 
     return randomValues.reduce(
       (prev, i) => prev + ((i < 16 ? '0' : '') + i.toString(16)),
-      ''
+      '',
     );
   }
 
   private async decryptCipherText(cipherText: string): Promise<string | null> {
     const secret = await this.retrieveRemoteSecret();
+    console.log(`Decrypt ${cipherText} with ${secret}`);
     return this.decrypt(secret, cipherText);
   }
 
@@ -275,23 +264,22 @@ export class EtherealSecretsClient {
       return this._key;
     }
 
-    try {
-      const res = await this._agent
-        .get(this._endpoint)
-        .withCredentials()
-        .accept('application/json');
+    const res = await axios.get(this._endpoint, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      withCredentials: true,
+    });
 
-      if (!res.body.key) {
-        throw new Error('The server did not answer with a key');
-      }
-
-      if (this._cacheKey) {
-        this._key = res.body.key;
-      }
-
-      return res.body.key as string;
-    } catch (err) {
-      throw new Error(err.message);
+    if (!res.data.key) {
+      throw new Error('The server did not answer with a key');
     }
+
+    if (this._cacheKey) {
+      this._key = res.data.key;
+    }
+
+    console.log(`Key (Cache-key: ${this._cacheKey}): ${res.data.key}`);
+    return res.data.key as string;
   }
 }

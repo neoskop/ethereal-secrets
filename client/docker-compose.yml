@@ -1,10 +1,9 @@
-version: "2.4"
 services:
   app:
     build: .
     command: npm start
     environment:
-      NODE_ENV: "test"
+      NODE_ENV: 'test'
     depends_on:
       - server
     volumes:
@@ -12,7 +11,7 @@ services:
   server:
     image: neoskop/ethereal-secrets-server
     logging:
-      driver: "none"
+      driver: 'none'
     depends_on:
       - redis
   redis:
