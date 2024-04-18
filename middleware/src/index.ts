@@ -239,7 +239,10 @@ export function etherealSecrets(
       httpOnly: true,
       maxAge: mergedConfig.local.ttl * 1000,
       path: '/',
-      secure: false,
+      secure:
+        typeof mergedConfig.local.cookie.secure !== 'undefined'
+          ? mergedConfig.local.cookie.secure
+          : true,
       sameSite: 'strict',
       ...mergedConfig.local.cookie,
     },
