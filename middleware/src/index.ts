@@ -242,7 +242,7 @@ export function etherealSecrets(
       secure:
         typeof mergedConfig.local.cookie.secure !== 'undefined'
           ? mergedConfig.local.cookie.secure
-          : false,
+          : true,
       sameSite: 'strict',
       ...mergedConfig.local.cookie,
     },

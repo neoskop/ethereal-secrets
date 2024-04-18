@@ -13,15 +13,23 @@ app.use(
     },
   }),
 );
-app.use(
-  '/',
-  etherealSecrets({
-    remote: {
-      enabled: true,
+
+const config = {
+  remote: {
+    enabled: true,
+  },
+  redis: {
+    host: process.env.REDIS_HOST || 'redis',
+  },
+  local: {
+    cookie: {
+      secure:
+        typeof process.env.SECURE_COOKIE === 'string'
+          ? process.env.SECURE_COOKIE === 'true'
+          : true,
     },
-    redis: {
-      host: process.env.REDIS_HOST || 'redis',
-    },
-  }),
-);
+  },
+};
+
+app.use('/', etherealSecrets(config));
 app.listen(8080);

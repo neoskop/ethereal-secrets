@@ -10,6 +10,8 @@ services:
       - ./client/src:/home/node/src:ro
   server:
     build: server
+    environment:
+      SECURE_COOKIE: "false"
     depends_on:
       - redis
     volumes:
