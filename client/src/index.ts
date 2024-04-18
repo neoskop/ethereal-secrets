@@ -42,21 +42,17 @@ export class EtherealSecretsClient {
     const additionalData = Buffer.from(encryptedObj.additionalData, 'base64');
     const key = await this.deriveKey(secret, salt);
 
-    try {
-      const clearText = await window.crypto.subtle.decrypt(
-        {
-          name: 'AES-GCM',
-          iv,
-          tagLength: 128,
-          additionalData,
-        },
-        key,
-        data,
-      );
-      return new TextDecoder('utf8').decode(clearText);
-    } catch (e) {
-      console.log(e);
-    }
+    const clearText = await window.crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv,
+        tagLength: 128,
+        additionalData,
+      },
+      key,
+      data,
+    );
+    return new TextDecoder('utf8').decode(clearText);
   }
 
   private async encrypt(secret: string, clearText: string): Promise<string> {
@@ -250,7 +246,6 @@ export class EtherealSecretsClient {
 
   private async decryptCipherText(cipherText: string): Promise<string | null> {
     const secret = await this.retrieveRemoteSecret();
-    console.log(`Decrypt ${cipherText} with ${secret}`);
     return this.decrypt(secret, cipherText);
   }
 
@@ -279,7 +274,6 @@ export class EtherealSecretsClient {
       this._key = res.data.key;
     }
 
-    console.log(`Key (Cache-key: ${this._cacheKey}): ${res.data.key}`);
     return res.data.key as string;
   }
 }
