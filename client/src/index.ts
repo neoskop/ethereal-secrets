@@ -30,16 +30,36 @@ export class EtherealSecretsClient {
       : config.endpoint + '/';
   }
 
+  private fromBase64(data: string): Uint8Array {
+    return new Uint8Array(
+      window
+        .atob(data)
+        .split('')
+        .map(function (c) {
+          return c.charCodeAt(0);
+        }),
+    );
+  }
+
   private toBase64(data: Uint8Array): string {
-    return Buffer.from(data).toString('base64');
+    const chunkSize = 0x1000;
+    const chunks = [];
+
+    for (let i = 0; i < data.length; i += chunkSize) {
+      chunks.push(
+        String.fromCharCode.apply(null, data.subarray(i, i + chunkSize)),
+      );
+    }
+
+    return window.btoa(chunks.join(''));
   }
 
   private async decrypt(secret: string, cipherText: string): Promise<string> {
     const encryptedObj = JSON.parse(cipherText);
-    const iv = Buffer.from(encryptedObj.iv, 'base64');
-    const salt = Buffer.from(encryptedObj.salt, 'base64');
-    const data = Buffer.from(encryptedObj.encrypted, 'base64');
-    const additionalData = Buffer.from(encryptedObj.additionalData, 'base64');
+    const iv = this.fromBase64(encryptedObj.iv);
+    const salt = this.fromBase64(encryptedObj.salt);
+    const data = this.fromBase64(encryptedObj.encrypted);
+    const additionalData = this.fromBase64(encryptedObj.additionalData);
     const key = await this.deriveKey(secret, salt);
 
     const clearText = await window.crypto.subtle.decrypt(
@@ -72,10 +92,10 @@ export class EtherealSecretsClient {
       data,
     );
     return JSON.stringify({
-      encrypted: Buffer.from(new Uint8Array(encrypted)).toString('base64'),
-      salt: Buffer.from(salt).toString('base64'),
-      iv: Buffer.from(iv).toString('base64'),
-      additionalData: Buffer.from(additionalData).toString('base64'),
+      encrypted: this.toBase64(new Uint8Array(encrypted)),
+      salt: this.toBase64(salt),
+      iv: this.toBase64(iv),
+      additionalData: this.toBase64(additionalData),
     });
   }
 
