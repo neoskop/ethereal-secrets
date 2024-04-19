@@ -1,6 +1,6 @@
 {
   "name": "@neoskop/ethereal-secrets-middleware",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
   "author": "Arne Diekmann <diekmann@neoskop.de>",
