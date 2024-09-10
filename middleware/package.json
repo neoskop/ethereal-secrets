@@ -44,7 +44,7 @@
     "typescript": "5.6.2"
   },
   "dependencies": {
-    "body-parser": "1.20.2",
+    "body-parser": "1.20.3",
     "connect-redis": "7.1.1",
     "deepmerge": "4.3.1",
     "express": "4.19.2",
