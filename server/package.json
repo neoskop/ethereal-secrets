@@ -1,6 +1,6 @@
 {
   "name": "@neoskop/ethereal-secrets-server",
-  "version": "4.0.4",
+  "version": "4.0.5",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
   "author": "Arne Diekmann <diekmann@neoskop.de>",
@@ -20,7 +20,7 @@
     "typescript": "5.6.2"
   },
   "dependencies": {
-    "@neoskop/ethereal-secrets-middleware": "4.0.4",
+    "@neoskop/ethereal-secrets-middleware": "4.0.5",
     "express": "4.21.0",
     "helmet": "7.1.0",
     "nocache": "4.0.0"
