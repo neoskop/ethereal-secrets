@@ -5,7 +5,7 @@ import IORedis from 'ioredis';
 import * as sinon from 'sinon';
 import { Response } from 'superagent';
 import { etherealSecrets } from '../index';
-import chaiHttp = require('chai-http');
+import { default as chaiHttp, request } from 'chai-http';
 import chaiUuid = require('chai-uuid');
 import UuidStatic = require('uuid');
 
@@ -61,7 +61,7 @@ describe('Ethereal Secrets Middleware', () => {
       res.sendStatus(418);
     });
     try {
-      const res = await chai.request.agent(app).put('/secrets/');
+      const res = await request.agent(app).put('/secrets/');
       return chai.expect(res).to.have.status(418);
     } catch (err) {
       return chai.expect(err.response).to.have.status(418);
@@ -78,8 +78,8 @@ describe('Ethereal Secrets Middleware', () => {
         redis: { host: 'redis' },
       }),
     );
-    const res = await chai
-      .request(app)
+    const res = await request
+      .agent(app)
       .get('/secrets')
       .set('Accept', 'application/json');
     chai.expect(res).to.have.cookie('sessionid');
@@ -97,7 +97,7 @@ describe('Ethereal Secrets Middleware', () => {
         redis: { host: 'redis' },
       }),
     );
-    let agent = chai.request.agent(app);
+    let agent = request.agent(app);
     const firstRes = await agent
       .get('/secrets')
       .set('Accept', 'application/json');
@@ -117,12 +117,12 @@ describe('Ethereal Secrets Middleware', () => {
         redis: { host: 'redis' },
       }),
     );
-    const firstRes = await chai
-      .request(app)
+    const firstRes = await request
+      .agent(app)
       .get('/secrets')
       .set('Accept', 'application/json');
-    const secondRes = await chai
-      .request(app)
+    const secondRes = await request
+      .agent(app)
       .get('/secrets')
       .set('Accept', 'application/json');
     return chai.expect(firstRes.body.key).to.not.equal(secondRes.body.key);
@@ -138,7 +138,7 @@ describe('Ethereal Secrets Middleware', () => {
         redis: { host: 'redis' },
       }),
     );
-    const res = await chai.request
+    const res = await request
       .agent(app)
       .get('/secrets')
       .set('Accept', 'application/json');
@@ -161,7 +161,7 @@ describe('Ethereal Secrets Middleware', () => {
         redis: { host: 'redis' },
       }),
     );
-    const res = await chai.request
+    const res = await request
       .agent(app)
       .get('/secrets')
       .set('Accept', 'application/json');
@@ -178,7 +178,7 @@ describe('Ethereal Secrets Middleware', () => {
 
   it('should store arbitrary data and return a uuid to it', async () => {
     setupRemoteMiddleware.call(this);
-    const res = await chai.request(app).post('/secrets').send({
+    const res = await request.agent(app).post('/secrets').send({
       data: 'foo',
     });
     return Promise.all([
@@ -190,7 +190,7 @@ describe('Ethereal Secrets Middleware', () => {
 
   it('should store arbitrary as long as requested', async () => {
     setupRemoteMiddleware.call(this);
-    const res = await chai.request(app).post('/secrets').send({
+    const res = await request.agent(app).post('/secrets').send({
       data: 'foo',
       ttl: 1337,
     });
@@ -208,7 +208,7 @@ describe('Ethereal Secrets Middleware', () => {
   it('should return status code 400 if data is missing', async () => {
     setupRemoteMiddleware.call(this);
     try {
-      const res = await chai.request
+      const res = await request
         .agent(app)
         .post('/secrets')
         .set('Accept', 'application/json');
@@ -220,7 +220,7 @@ describe('Ethereal Secrets Middleware', () => {
 
   it('should return the same data given the result uuid', async () => {
     setupRemoteMiddleware.call(this);
-    const res = await chai.request
+    const res = await request
       .agent(app)
       .post('/secrets')
       .send({
@@ -228,7 +228,7 @@ describe('Ethereal Secrets Middleware', () => {
       })
       .set('Accept', 'application/json');
     let key = res.body['key'];
-    const res2 = await chai.request.agent(app).get('/secrets/' + key);
+    const res2 = await request.agent(app).get('/secrets/' + key);
     return await Promise.all([
       chai.expect(res2).to.have.status(200),
       chai.expect(res2.body).to.be.an('object').with.keys('data', 'expiryDate'),
@@ -239,7 +239,7 @@ describe('Ethereal Secrets Middleware', () => {
   it('should return status code 400 when trying to get data via an invalid uuid', async () => {
     setupRemoteMiddleware.call(this);
     try {
-      const res = await chai.request
+      const res = await request
         .agent(app)
         .get('/secrets/foobar')
         .set('Accept', 'application/json');
@@ -252,7 +252,7 @@ describe('Ethereal Secrets Middleware', () => {
   it('should return status code 400 when trying to delete data via an invalid uuid', async () => {
     setupRemoteMiddleware.call(this);
     try {
-      const res = await chai.request.agent(app).del('/secrets/foobar');
+      const res = await request.agent(app).del('/secrets/foobar');
       return chai.expect(res).to.have.status(400);
     } catch (err) {
       return chai.expect(err.response).to.have.status(400);
@@ -262,7 +262,7 @@ describe('Ethereal Secrets Middleware', () => {
   it('should return 404 for a uuid that does not exist', async () => {
     setupRemoteMiddleware.call(this);
     try {
-      const res = await chai.request
+      const res = await request
         .agent(app)
         .get('/secrets/' + UuidStatic.v4())
         .set('Accept', 'application/json');
@@ -275,7 +275,7 @@ describe('Ethereal Secrets Middleware', () => {
   it('should return 404 for a uuid that was deleted', async () => {
     setupRemoteMiddleware.call(this);
     try {
-      const res = await chai.request
+      const res = await request
         .agent(app)
         .post('/secrets')
         .send({
@@ -284,9 +284,9 @@ describe('Ethereal Secrets Middleware', () => {
         .set('Accept', 'application/json');
 
       let key = res.body['key'];
-      await chai.request.agent(app).del('/secrets/' + key);
+      await request.agent(app).del('/secrets/' + key);
 
-      const res2 = await chai.request.agent(app).get('/secrets/' + key);
+      const res2 = await request.agent(app).get('/secrets/' + key);
 
       chai.expect(res2).to.have.status(404);
     } catch (err) {
@@ -296,7 +296,7 @@ describe('Ethereal Secrets Middleware', () => {
 
   it('should return 404 for a key/value pair that has expired via the default ttl', async () => {
     setupRemoteMiddleware.call(this, { defaultTtl: 9 });
-    const res = await chai.request
+    const res = await request
       .agent(app)
       .post('/secrets')
       .send({
@@ -313,7 +313,7 @@ describe('Ethereal Secrets Middleware', () => {
 
   it('should return 404 for a key/value pair that has expired via the explicit ttl', async () => {
     setupRemoteMiddleware.call(this);
-    const res: Response = await chai.request
+    const res: Response = await request
       .agent(app)
       .post('/secrets')
       .send({
@@ -331,7 +331,7 @@ describe('Ethereal Secrets Middleware', () => {
 
   it('should use default ttl in case of an invalid explicit ttl', async () => {
     setupRemoteMiddleware.call(this);
-    const res = await chai.request
+    const res = await request
       .agent(app)
       .post('/secrets')
       .send({
@@ -350,7 +350,7 @@ describe('Ethereal Secrets Middleware', () => {
       defaultTtl: 1337,
       maxTtl: 2000,
     });
-    const res = await chai.request
+    const res = await request
       .agent(app)
       .post('/secrets')
       .send({
@@ -370,7 +370,7 @@ describe('Ethereal Secrets Middleware', () => {
     setupRemoteMiddleware.call(this, { maxLength: 8 });
 
     try {
-      const res = await chai.request
+      const res = await request
         .agent(app)
         .post('/secrets')
         .send({
@@ -397,7 +397,7 @@ describe('Ethereal Secrets Middleware', () => {
         redis: { client: redis },
       }),
     );
-    const res = await chai.request
+    const res = await request
       .agent(app)
       .get('/secrets')
       .set('Accept', 'application/json');
@@ -418,7 +418,7 @@ describe('Ethereal Secrets Middleware', () => {
       data: 'foo',
       secondFactor: 'bar',
     });
-    const res = await chai.request
+    const res = await request
       .agent(app)
       .get('/secrets/' + key + '?secondFactor=bar');
     return await Promise.all([
@@ -435,7 +435,7 @@ describe('Ethereal Secrets Middleware', () => {
       secondFactor: 'bar',
     });
     try {
-      const res = await chai.request.agent(app).get('/secrets/' + key);
+      const res = await request.agent(app).get('/secrets/' + key);
       chai.expect(res).to.have.status(401);
     } catch (err) {
       if (err.response) {
@@ -453,7 +453,7 @@ describe('Ethereal Secrets Middleware', () => {
       secondFactor: 'bar',
     });
     try {
-      const res = await chai.request
+      const res = await request
         .agent(app)
         .get('/secrets/' + key + '?secondFactor=baz');
       chai.expect(res).to.have.status(401);
@@ -473,7 +473,7 @@ describe('Ethereal Secrets Middleware', () => {
       secondFactor: 'bar',
     });
     try {
-      const res = await chai.request.agent(app).delete('/secrets/' + key);
+      const res = await request.agent(app).delete('/secrets/' + key);
       chai.expect(res).to.have.status(401);
     } catch (err) {
       if (err.response) {
@@ -491,7 +491,7 @@ describe('Ethereal Secrets Middleware', () => {
       secondFactor: 'bar',
     });
     try {
-      const res = await chai.request
+      const res = await request
         .agent(app)
         .delete('/secrets/' + key + '?secondFactor=baz');
       chai.expect(res).to.have.status(401);
@@ -510,7 +510,7 @@ describe('Ethereal Secrets Middleware', () => {
       data: 'foo',
       secondFactor: 'bar',
     });
-    const res = await chai.request
+    const res = await request
       .agent(app)
       .delete('/secrets/' + key + '?secondFactor=bar');
     chai.expect(res).to.have.status(200);
@@ -537,7 +537,7 @@ async function storeRemoteData(data: {
   ttl?: number;
   secondFactor?: string;
 }) {
-  const res = await chai.request
+  const res = await request
     .agent(app)
     .post('/secrets')
     .send(data)
