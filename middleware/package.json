@@ -24,7 +24,7 @@
     "@types/chai": "5.0.1",
     "@types/cookie-parser": "1.4.8",
     "@types/express": "5.0.0",
-    "@types/express-session": "1.18.0",
+    "@types/express-session": "1.18.1",
     "@types/ioredis": "5.0.0",
     "@types/mocha": "10.0.10",
     "@types/redis": "4.0.11",
