@@ -1,4 +1,4 @@
-FROM node:21.7.3-bullseye-slim
+FROM node:22.15.0-bullseye-slim
 LABEL maintainer "devops@neoskop.de"
 
 WORKDIR /home/node
