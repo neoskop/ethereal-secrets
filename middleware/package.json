@@ -20,7 +20,7 @@
     "test": "nyc --reporter=text mocha --require ts-node/register src/test/**/*.ts"
   },
   "devDependencies": {
-    "@types/body-parser": "1.19.5",
+    "@types/body-parser": "1.19.6",
     "@types/chai": "5.2.2",
     "@types/cookie-parser": "1.4.8",
     "@types/express": "5.0.1",
