@@ -7,8 +7,7 @@ A middleware to help secure temporary confidential data in the browser.
 _Ethereal Secrets_ is a small set of projects to enable clients to store sensitive data in their browser in an encrypted manner. Currently it encompasses the following project parts:
 
 1. [Middleware](./middleware): An Express middleware to expose a REST endpoint to issue secrets or to store encrypted data. The keys and the cipher texts are stored in a Redis DB. Each entry in the database is assigned a time-to-live.
-2. [Server](./server): A simple Express server that showcases the usage and can be used as a standalone backend.
-3. [Client](./client): A TypeScript/JavaScript library that abstracts the communication with the server.
+3. [Client](./client): A TypeScript/JavaScript library that abstracts the communication with the middleware.
 
 ## Quickstart
 
