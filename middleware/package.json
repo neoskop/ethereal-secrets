@@ -31,7 +31,7 @@
     "@types/sinon": "17.0.4",
     "@types/superagent": "8.1.9",
     "@types/uuid": "10.0.0",
-    "@types/validator": "13.15.3",
+    "@types/validator": "13.15.4",
     "chai": "5.3.3",
     "chai-http": "5.1.2",
     "chai-uuid": "1.0.6",
