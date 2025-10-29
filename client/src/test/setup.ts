@@ -6,5 +6,5 @@ Object.defineProperty(globalThis, 'crypto', {
   value: webcrypto,
 });
 
-global.TextEncoder = TextEncoder;
+global.TextEncoder = TextEncoder as any;
 global.TextDecoder = TextDecoder;

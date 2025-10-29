@@ -30,7 +30,7 @@ export class EtherealSecretsClient {
       : config.endpoint + '/';
   }
 
-  private fromBase64(data: string): Uint8Array {
+  private fromBase64(data: string): Uint8Array<ArrayBuffer> {
     return new Uint8Array(
       window
         .atob(data)
@@ -99,7 +99,7 @@ export class EtherealSecretsClient {
     });
   }
 
-  private async deriveKey(secret: string, salt: Uint8Array) {
+  private async deriveKey(secret: string, salt: Uint8Array<ArrayBuffer>) {
     const enc = new TextEncoder();
     const keyMaterial = await window.crypto.subtle.importKey(
       'raw',
