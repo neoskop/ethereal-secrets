@@ -1,5 +1,4 @@
 import * as session from 'express-session';
-import UuidStatic = require('uuid');
 import * as bodyParser from 'body-parser';
 import * as crypto from 'crypto';
 import * as deepmerge from 'deepmerge';
@@ -13,6 +12,7 @@ import * as ioredis from 'ioredis';
 import * as Validator from 'validator';
 import { RedisOptions } from 'ioredis';
 import RedisStore from 'connect-redis';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface EtherealSecretsConfig {
   local?: {
@@ -112,8 +112,7 @@ const createRemotelyEncrypted = async (
     res.sendStatus(400);
     return;
   }
-
-  const uuid = UuidStatic.v4();
+  const uuid = uuidv4();
   let expiryDate = new Date();
   let redisKey = `remote:${uuid}`;
 

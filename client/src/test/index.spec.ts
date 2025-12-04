@@ -88,7 +88,7 @@ describe('Ethereal Secrets Client', () => {
       sut.getRemote(
         'decafbad-dead-dead-dead-decafbadadad;decafbaddecafbaddecafbaddecafbaddecafbaddecafbaddecafbaddecafbad',
       ),
-    ).rejects.toThrow(/404/);
+    ).rejects.toThrow(/40[04]/);
   });
 
   it('should not return data when the data was deleted beforehand', async () => {

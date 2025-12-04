@@ -9,5 +9,5 @@ RUN npm i
 COPY src ./src
 RUN npm run build
 
-CMD ["npm","run","test"]
+CMD ["npm","start"]
 EXPOSE 8080 9229

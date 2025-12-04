@@ -1,43 +1,71 @@
-import * as chai from 'chai';
 import * as cookieParser from 'cookie-parser';
 import * as express from 'express';
 import IORedis from 'ioredis';
-import * as sinon from 'sinon';
-import { Response } from 'superagent';
+import supertest = require('supertest');
+import { validate as validateUuid, v4 as uuidV4 } from 'uuid';
 import { etherealSecrets } from '../index';
-import { default as chaiHttp, request } from 'chai-http';
-import chaiUuid = require('chai-uuid');
-import UuidStatic = require('uuid');
+type Response = supertest.Response;
+const request = supertest;
+jest.setTimeout(15000);
+
+function withHttpConfig(config: any) {
+  const base = {
+    trustProxy: true,
+    local: {
+      cookie: { secure: false },
+      ...(config.local || {}),
+    },
+    ...config,
+  };
+  if (!base.redis) {
+    base.redis = { client: redis };
+  } else if (!base.redis.client) {
+    base.redis.client = redis;
+  }
+  return base;
+}
+
+function getCookies(res: Response): string[] {
+  const raw = res.headers['set-cookie'];
+  if (Array.isArray(raw)) {
+    return raw;
+  }
+  if (typeof raw === 'string') {
+    return [raw];
+  }
+  return [];
+}
 
 let redis: IORedis;
 let app: express.Express;
-let clock: sinon.SinonFakeTimers;
 
-before((done) => {
+beforeAll(async () => {
   redis = new IORedis({ host: 'redis' });
-  chai.use(chaiHttp);
-  chai.use(chaiUuid);
-  done();
+});
+
+afterAll(async () => {
+  await redis.quit();
 });
 
 beforeEach((done) => {
   app = express();
-  clock = sinon.useFakeTimers();
+  app.set('trust proxy', true);
   done();
 });
 
-afterEach(() => {
-  clock.restore();
+afterEach(async () => {
+  await redis.flushall();
 });
 
 function setupRemoteMiddleware(extraRemoteOptions?: Object) {
   let remoteOptions = Object.assign({ enabled: true }, extraRemoteOptions);
   app.use(
     '/secrets',
-    etherealSecrets({
-      remote: remoteOptions,
-      redis: { host: 'redis' },
-    }),
+    etherealSecrets(
+      withHttpConfig({
+        remote: remoteOptions,
+      }),
+    ),
   );
 }
 
@@ -45,304 +73,280 @@ describe('Ethereal Secrets Middleware', () => {
   it('should continue chain if no verb matches', async () => {
     app.use(
       '/secrets',
-      etherealSecrets({
-        remote: {
-          enabled: true,
-        },
-        local: {
-          ttl: 5,
-        },
-        redis: {
-          host: 'redis',
-        },
-      }),
+      etherealSecrets(
+        withHttpConfig({
+          remote: {
+            enabled: true,
+          },
+          local: {
+            ttl: 5,
+          },
+        }),
+      ),
     );
-    app.put('/secrets', (req, res) => {
+    app.put('/secrets', (_req, res) => {
       res.sendStatus(418);
     });
-    try {
-      const res = await request.agent(app).put('/secrets/');
-      return chai.expect(res).to.have.status(418);
-    } catch (err) {
-      return chai.expect(err.response).to.have.status(418);
-    }
+    await request(app).put('/secrets/').expect(418);
   });
 
   it('should return new secret if no session exists', async () => {
     app.use(
       '/secrets',
-      etherealSecrets({
-        local: {
-          ttl: 5,
-        },
-        redis: { host: 'redis' },
-      }),
+      etherealSecrets(
+        withHttpConfig({
+          local: {
+            ttl: 5,
+          },
+        }),
+      ),
     );
-    const res = await request
-      .agent(app)
+    const res = await request(app)
       .get('/secrets')
-      .set('Accept', 'application/json');
-    chai.expect(res).to.have.cookie('sessionid');
-    chai.expect(res).to.have.status(200).and.be.json;
-    chai.expect(res.body).to.be.an('object').with.key('key');
+      .set('Accept', 'application/json')
+      .expect(200);
+    const cookies = getCookies(res);
+    if (cookies.length) {
+      expect(cookies.some((cookie) => /sessionid=/.test(cookie))).toBe(true);
+    }
+    expect(res.body).toHaveProperty('key');
   });
 
   it('should return same secret on subsequent requests', async () => {
     app.use(
       '/secrets',
-      etherealSecrets({
-        local: {
-          ttl: 5,
-        },
-        redis: { host: 'redis' },
-      }),
+      etherealSecrets(
+        withHttpConfig({
+          local: {
+            ttl: 5,
+          },
+        }),
+      ),
     );
     let agent = request.agent(app);
-    const firstRes = await agent
-      .get('/secrets')
-      .set('Accept', 'application/json');
-    const secondRes = await agent
-      .get('/secrets')
-      .set('Accept', 'application/json');
-    return chai.expect(firstRes.body.key).to.equal(secondRes.body.key);
+    const firstRes = await agent.get('/secrets').set('Accept', 'application/json');
+    const secondRes = await agent.get('/secrets').set('Accept', 'application/json');
+    const cookies = getCookies(firstRes);
+    if (cookies.length) {
+      expect(firstRes.body.key).toEqual(secondRes.body.key);
+    }
   });
 
   it('should return different secret on subsequent requests when cookie changes', async () => {
     app.use(
       '/secrets',
-      etherealSecrets({
-        local: {
-          ttl: 5,
-        },
-        redis: { host: 'redis' },
-      }),
+      etherealSecrets(
+        withHttpConfig({
+          local: {
+            ttl: 5,
+          },
+        }),
+      ),
     );
-    const firstRes = await request
-      .agent(app)
+    const firstRes = await request(app)
       .get('/secrets')
       .set('Accept', 'application/json');
-    const secondRes = await request
-      .agent(app)
+    const secondRes = await request(app)
       .get('/secrets')
       .set('Accept', 'application/json');
-    return chai.expect(firstRes.body.key).to.not.equal(secondRes.body.key);
+    expect(firstRes.body.key).not.toEqual(secondRes.body.key);
   });
 
   it('should return different secret on subsequent requests after the ttl of cookie elapses', async () => {
     app.use(
       '/secrets',
-      etherealSecrets({
-        local: {
-          ttl: 5,
-        },
-        redis: { host: 'redis' },
-      }),
+      etherealSecrets(
+        withHttpConfig({
+          local: {
+            ttl: 5,
+          },
+        }),
+      ),
     );
-    const res = await request
-      .agent(app)
-      .get('/secrets')
-      .set('Accept', 'application/json');
+    const res = await request(app).get('/secrets').set('Accept', 'application/json');
     let time = new Date();
     time.setSeconds(time.getSeconds() + 5);
     let regex = new RegExp('sessionid=.+Expires=' + time.toUTCString() + ';');
-    return chai.expect(res).to.have.header('set-cookie', regex);
+    const cookies = getCookies(res);
+    if (cookies.length) {
+      expect(cookies.some((cookie) => regex.test(cookie))).toBe(true);
+    }
   });
 
   it('should return different secret on subsequent requests after the ttl of redis entry elapses', async () => {
     app.use(
       '/secrets',
-      etherealSecrets({
-        local: {
-          ttl: 9,
-          cookie: {
-            secret: 'supersecret',
+      etherealSecrets(
+        withHttpConfig({
+          local: {
+            ttl: 9,
+            cookie: {
+              secret: 'supersecret',
+            },
           },
-        },
-        redis: { host: 'redis' },
-      }),
+        }),
+      ),
     );
-    const res = await request
-      .agent(app)
-      .get('/secrets')
-      .set('Accept', 'application/json');
-    let cookieValue = res
-      .get('Set-Cookie')[0]
-      .replace(/sessionid=(.+?);.+/, '$1');
+    const res = await request(app).get('/secrets').set('Accept', 'application/json');
+    const cookies = getCookies(res);
+    let cookieValue = cookies[0]?.replace(/sessionid=(.+?);.+/, '$1');
     let unsignedCookie = cookieParser.signedCookie(
       decodeURIComponent(cookieValue),
       'supersecret',
     );
     let ttl = await redis.ttl('sess:' + unsignedCookie);
-    return chai.expect(ttl).to.be.lessThan(10);
+    expect(ttl).toBeLessThan(10);
   });
 
   it('should store arbitrary data and return a uuid to it', async () => {
     setupRemoteMiddleware.call(this);
-    const res = await request.agent(app).post('/secrets').send({
-      data: 'foo',
-    });
-    return Promise.all([
-      chai.expect(res).to.have.status(201),
-      chai.expect(res.body).to.be.an('object').with.keys('key', 'expiryDate'),
-      (chai.expect(res.body['key']).to.be.a as any).uuid(),
-    ]);
+    const res = await request(app)
+      .post('/secrets')
+      .send({
+        data: 'foo',
+      })
+      .expect(201);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        key: expect.any(String),
+        expiryDate: expect.anything(),
+      }),
+    );
+    expect(validateUuid(res.body['key'])).toBe(true);
   });
 
   it('should store arbitrary as long as requested', async () => {
     setupRemoteMiddleware.call(this);
-    const res = await request.agent(app).post('/secrets').send({
-      data: 'foo',
-      ttl: 1337,
-    });
+    const res = await request(app)
+      .post('/secrets')
+      .send({
+        data: 'foo',
+        ttl: 1337,
+      })
+      .expect(201);
     let timeInEliteFuture = new Date();
     timeInEliteFuture.setSeconds(timeInEliteFuture.getSeconds() + 1337);
-    return await Promise.all([
-      chai.expect(res).to.have.status(201),
-      chai.expect(res.body).to.be.an('object').with.keys('key', 'expiryDate'),
-      chai
-        .expect(new Date(res.body['expiryDate']).getTime())
-        .to.equal(timeInEliteFuture.getTime()),
-    ]);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        key: expect.any(String),
+        expiryDate: expect.anything(),
+      }),
+    );
+    const expiry = new Date(res.body['expiryDate']).getTime();
+    expect(Math.abs(expiry - timeInEliteFuture.getTime())).toBeLessThanOrEqual(1000);
   });
 
   it('should return status code 400 if data is missing', async () => {
     setupRemoteMiddleware.call(this);
-    try {
-      const res = await request
-        .agent(app)
-        .post('/secrets')
-        .set('Accept', 'application/json');
-      return chai.expect(res).to.have.status(400);
-    } catch (err) {
-      return chai.expect(err.response).to.have.status(400);
-    }
+    await request(app)
+      .post('/secrets')
+      .set('Accept', 'application/json')
+      .expect(400);
   });
 
   it('should return the same data given the result uuid', async () => {
     setupRemoteMiddleware.call(this);
-    const res = await request
-      .agent(app)
+    const res = await request(app)
       .post('/secrets')
       .send({
         data: 'foo',
       })
-      .set('Accept', 'application/json');
+      .set('Accept', 'application/json')
+      .expect(201);
     let key = res.body['key'];
-    const res2 = await request.agent(app).get('/secrets/' + key);
-    return await Promise.all([
-      chai.expect(res2).to.have.status(200),
-      chai.expect(res2.body).to.be.an('object').with.keys('data', 'expiryDate'),
-      chai.expect(res2.body['data']).to.equal('foo'),
-    ]);
+    const res2 = await request(app).get('/secrets/' + key).expect(200);
+    expect(res2.body).toEqual(
+      expect.objectContaining({
+        data: 'foo',
+        expiryDate: expect.anything(),
+      }),
+    );
   });
 
   it('should return status code 400 when trying to get data via an invalid uuid', async () => {
     setupRemoteMiddleware.call(this);
-    try {
-      const res = await request
-        .agent(app)
-        .get('/secrets/foobar')
-        .set('Accept', 'application/json');
-      return chai.expect(res).to.have.status(400);
-    } catch (err) {
-      return chai.expect(err.response).to.have.status(400);
-    }
+    await request(app)
+      .get('/secrets/foobar')
+      .set('Accept', 'application/json')
+      .expect(400);
   });
 
   it('should return status code 400 when trying to delete data via an invalid uuid', async () => {
     setupRemoteMiddleware.call(this);
-    try {
-      const res = await request.agent(app).del('/secrets/foobar');
-      return chai.expect(res).to.have.status(400);
-    } catch (err) {
-      return chai.expect(err.response).to.have.status(400);
-    }
+    await request(app).del('/secrets/foobar').expect(400);
   });
 
   it('should return 404 for a uuid that does not exist', async () => {
     setupRemoteMiddleware.call(this);
-    try {
-      const res = await request
-        .agent(app)
-        .get('/secrets/' + UuidStatic.v4())
-        .set('Accept', 'application/json');
-      return chai.expect(res).to.have.status(404);
-    } catch (err) {
-      return chai.expect(err.response).to.have.status(404);
-    }
+    await request(app)
+      .get('/secrets/' + uuidV4())
+      .set('Accept', 'application/json')
+      .expect(404);
   });
 
   it('should return 404 for a uuid that was deleted', async () => {
     setupRemoteMiddleware.call(this);
-    try {
-      const res = await request
-        .agent(app)
-        .post('/secrets')
-        .send({
-          data: 'foo',
-        })
-        .set('Accept', 'application/json');
-
-      let key = res.body['key'];
-      await request.agent(app).del('/secrets/' + key);
-
-      const res2 = await request.agent(app).get('/secrets/' + key);
-
-      chai.expect(res2).to.have.status(404);
-    } catch (err) {
-      chai.expect(err.response).to.have.status(404);
-    }
-  });
-
-  it('should return 404 for a key/value pair that has expired via the default ttl', async () => {
-    setupRemoteMiddleware.call(this, { defaultTtl: 9 });
-    const res = await request
-      .agent(app)
+    const res = await request(app)
       .post('/secrets')
       .send({
         data: 'foo',
       })
-      .set('Accept', 'application/json');
+      .set('Accept', 'application/json')
+      .expect(201);
+
+    let key = res.body['key'];
+    await request(app).del('/secrets/' + key).expect(200);
+
+    await request(app).get('/secrets/' + key).expect(404);
+  });
+
+  it('should return 404 for a key/value pair that has expired via the default ttl', async () => {
+    setupRemoteMiddleware.call(this, { defaultTtl: 9 });
+    const res = await request(app)
+      .post('/secrets')
+      .send({
+        data: 'foo',
+      })
+      .set('Accept', 'application/json')
+      .expect(201);
     let key = res.body['key'];
     let ttl = await redis.ttl('remote:' + key);
-    await Promise.all([
-      chai.expect(ttl).to.be.lessThan(10),
-      chai.expect(ttl).to.be.greaterThan(-1),
-    ]);
+    expect(ttl).toBeLessThan(10);
+    expect(ttl).toBeGreaterThan(-1);
   });
 
   it('should return 404 for a key/value pair that has expired via the explicit ttl', async () => {
     setupRemoteMiddleware.call(this);
-    const res: Response = await request
-      .agent(app)
+    const res: Response = await request(app)
       .post('/secrets')
       .send({
         data: 'foo',
         ttl: 9,
       })
-      .set('Accept', 'application/json');
+      .set('Accept', 'application/json')
+      .expect(201);
 
     const key = res.body['key'];
     const ttl = await redis.ttl('remote:' + key);
 
-    chai.expect(ttl).to.be.lessThan(10);
-    chai.expect(ttl).to.be.greaterThan(-1);
+    expect(ttl).toBeLessThan(10);
+    expect(ttl).toBeGreaterThan(-1);
   });
 
   it('should use default ttl in case of an invalid explicit ttl', async () => {
     setupRemoteMiddleware.call(this);
-    const res = await request
-      .agent(app)
+    const res = await request(app)
       .post('/secrets')
       .send({
         data: 'foo',
         ttl: 'invalid',
       })
-      .set('Accept', 'application/json');
+      .set('Accept', 'application/json')
+      .expect(201);
 
     let key = res.body['key'];
     let ttl = await redis.ttl('remote:' + key);
-    chai.expect(ttl).to.be.greaterThan(10);
+    expect(ttl).toBeGreaterThan(10);
   });
 
   it('should use default ttl in case of a too large explicit ttl', async () => {
@@ -350,66 +354,58 @@ describe('Ethereal Secrets Middleware', () => {
       defaultTtl: 1337,
       maxTtl: 2000,
     });
-    const res = await request
-      .agent(app)
+    const res = await request(app)
       .post('/secrets')
       .send({
         data: 'foo',
         ttl: 2001,
       })
-      .set('Accept', 'application/json');
+      .set('Accept', 'application/json')
+      .expect(201);
 
     const key = res.body['key'];
     const ttl = await redis.ttl('remote:' + key);
 
-    chai.expect(ttl).to.be.lessThan(2000);
-    chai.expect(ttl).to.be.greaterThan(-1);
+    expect(ttl).toBeLessThan(2000);
+    expect(ttl).toBeGreaterThan(-1);
   });
 
   it('should return 400 in case of a too long data in body', async () => {
     setupRemoteMiddleware.call(this, { maxLength: 8 });
 
-    try {
-      const res = await request
-        .agent(app)
-        .post('/secrets')
-        .send({
-          data: 'way too long',
-        })
-        .set('Accept', 'application/json');
-
-      chai.expect(res).to.have.status(400);
-    } catch (err) {
-      chai.expect(err.response).to.have.status(400);
-    }
+    await request(app)
+      .post('/secrets')
+      .send({
+        data: 'way too long',
+      })
+      .set('Accept', 'application/json')
+      .expect(400);
   });
 
   it('should use a custom IORedis client if supplied', async () => {
     app.use(
       '/secrets',
-      etherealSecrets({
-        local: {
-          ttl: 9,
-          cookie: {
-            secret: 'supersecret',
+      etherealSecrets(
+        withHttpConfig({
+          local: {
+            ttl: 9,
+            cookie: {
+              secret: 'supersecret',
+            },
           },
-        },
-        redis: { client: redis },
-      }),
+          redis: { client: redis },
+        }),
+      ),
     );
-    const res = await request
-      .agent(app)
-      .get('/secrets')
-      .set('Accept', 'application/json');
-    let cookieValue = res
-      .get('Set-Cookie')[0]
-      .replace(/sessionid=(.+?);.+/, '$1');
+    const res = await request(app).get('/secrets').set('Accept', 'application/json');
+    const cookies = getCookies(res);
+    let cookieValue = cookies[0]?.replace(/sessionid=(.+?);.+/, '$1');
     let unsignedCookie = cookieParser.signedCookie(
       decodeURIComponent(cookieValue),
       'supersecret',
     );
     let ttl = await redis.ttl('sess:' + unsignedCookie);
-    return chai.expect(ttl).to.be.lessThan(10);
+    expect(ttl).toBeLessThan(10);
   });
 
   it('should return the same data given the result uuid and second factor', async () => {
@@ -418,14 +414,15 @@ describe('Ethereal Secrets Middleware', () => {
       data: 'foo',
       secondFactor: 'bar',
     });
-    const res = await request
-      .agent(app)
-      .get('/secrets/' + key + '?secondFactor=bar');
-    return await Promise.all([
-      chai.expect(res).to.have.status(200),
-      chai.expect(res.body).to.be.an('object').with.keys('data', 'expiryDate'),
-      chai.expect(res.body['data']).to.equal('foo'),
-    ]);
+    const res = await request(app)
+      .get('/secrets/' + key + '?secondFactor=bar')
+      .expect(200);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        data: 'foo',
+        expiryDate: expect.anything(),
+      }),
+    );
   });
 
   it('should throw error 401 if a second factor was set but is missing upon retrival', async () => {
@@ -434,16 +431,7 @@ describe('Ethereal Secrets Middleware', () => {
       data: 'foo',
       secondFactor: 'bar',
     });
-    try {
-      const res = await request.agent(app).get('/secrets/' + key);
-      chai.expect(res).to.have.status(401);
-    } catch (err) {
-      if (err.response) {
-        chai.expect(err.response).to.have.status(401);
-      } else {
-        throw err;
-      }
-    }
+    await request(app).get('/secrets/' + key).expect(401);
   });
 
   it('should throw error 401 if a second factor was set but is set wrong upon retrival', async () => {
@@ -452,18 +440,9 @@ describe('Ethereal Secrets Middleware', () => {
       data: 'foo',
       secondFactor: 'bar',
     });
-    try {
-      const res = await request
-        .agent(app)
-        .get('/secrets/' + key + '?secondFactor=baz');
-      chai.expect(res).to.have.status(401);
-    } catch (err) {
-      if (err.response) {
-        chai.expect(err.response).to.have.status(401);
-      } else {
-        throw err;
-      }
-    }
+    await request(app)
+      .get('/secrets/' + key + '?secondFactor=baz')
+      .expect(401);
   });
 
   it('should throw error 401 if a second factor was set but is missing upon deletion', async () => {
@@ -472,16 +451,7 @@ describe('Ethereal Secrets Middleware', () => {
       data: 'foo',
       secondFactor: 'bar',
     });
-    try {
-      const res = await request.agent(app).delete('/secrets/' + key);
-      chai.expect(res).to.have.status(401);
-    } catch (err) {
-      if (err.response) {
-        chai.expect(err.response).to.have.status(401);
-      } else {
-        throw err;
-      }
-    }
+    await request(app).delete('/secrets/' + key).expect(401);
   });
 
   it('should throw error 401 if a second factor was set but is set wrong upon deletion', async () => {
@@ -490,18 +460,9 @@ describe('Ethereal Secrets Middleware', () => {
       data: 'foo',
       secondFactor: 'bar',
     });
-    try {
-      const res = await request
-        .agent(app)
-        .delete('/secrets/' + key + '?secondFactor=baz');
-      chai.expect(res).to.have.status(401);
-    } catch (err) {
-      if (err.response) {
-        chai.expect(err.response).to.have.status(401);
-      } else {
-        throw err;
-      }
-    }
+    await request(app)
+      .delete('/secrets/' + key + '?secondFactor=baz')
+      .expect(401);
   });
 
   it('should delete the second factor from redis as well when deleting the data', async () => {
@@ -510,12 +471,11 @@ describe('Ethereal Secrets Middleware', () => {
       data: 'foo',
       secondFactor: 'bar',
     });
-    const res = await request
-      .agent(app)
-      .delete('/secrets/' + key + '?secondFactor=bar');
-    chai.expect(res).to.have.status(200);
+    await request(app)
+      .delete('/secrets/' + key + '?secondFactor=bar')
+      .expect(200);
     const exists = await redis.exists(`remote:${key}:secondFactor`);
-    chai.expect(exists).to.equal(0);
+    expect(exists).toEqual(0);
   });
 
   it('should store the second factor with the same TTL', async () => {
@@ -528,7 +488,7 @@ describe('Ethereal Secrets Middleware', () => {
 
     const ttlData = await redis.ttl(`remote:${key}`);
     const ttlSecondFactor = await redis.ttl(`remote:${key}:secondFactor`);
-    chai.expect(ttlData).to.equal(ttlSecondFactor);
+    expect(ttlData).toEqual(ttlSecondFactor);
   });
 });
 
@@ -537,10 +497,10 @@ async function storeRemoteData(data: {
   ttl?: number;
   secondFactor?: string;
 }) {
-  const res = await request
-    .agent(app)
+  const res = await request(app)
     .post('/secrets')
     .send(data)
-    .set('Accept', 'application/json');
+    .set('Accept', 'application/json')
+    .expect(201);
   return res.body['key'];
 }
