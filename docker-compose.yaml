@@ -4,6 +4,8 @@ services:
       context: ./middleware
     environment:
       NODE_ENV: test
+    volumes:
+      - ./middleware/src:/home/node/src:ro
     depends_on:
       - redis
 
@@ -12,6 +14,8 @@ services:
       context: ./client
     environment:
       NODE_ENV: test
+    volumes:
+      - ./client/src:/home/node/src:ro
     depends_on:
       - server
       - redis

@@ -11,5 +11,5 @@ RUN mkdir -p ./tmp/localstorage && \
     mkdir ./tmp/sessionstorage && \
     npm run build
 
-CMD ["npm","run","test"]
+CMD ["npm","start"]
 EXPOSE 8080 9229
