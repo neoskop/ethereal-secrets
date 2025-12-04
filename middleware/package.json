@@ -39,7 +39,7 @@
     "cookie-parser": "1.4.7",
     "mocha": "10.8.2",
     "nyc": "17.1.0",
-    "rimraf": "6.1.0",
+    "rimraf": "6.1.2",
     "sinon": "19.0.5",
     "ts-node": "10.9.2",
     "typescript": "5.9.3"
