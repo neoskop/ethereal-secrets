@@ -31,7 +31,7 @@
     "cookie-parser": "1.4.7",
     "jest": "30.2.0",
     "rimraf": "6.1.2",
-    "supertest": "7.1.4",
+    "supertest": "7.2.2",
     "ts-jest": "29.4.6",
     "ts-node": "10.9.2",
     "typescript": "5.9.3"
