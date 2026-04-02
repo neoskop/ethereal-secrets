@@ -1,5 +1,3 @@
-import axios from 'axios';
-
 export interface EtherealSecretsClientConfig {
   endpoint: string;
   storage?: Storage;
@@ -150,7 +148,7 @@ export class EtherealSecretsClient {
   ): Promise<RemoteRetrieveResult> {
     const keys = this.parseFragmentIdentifier(fragmentIdentifier);
     const { secondFactor } = options;
-    const res = await axios.get(
+    const res = await fetch(
       this._endpoint +
         keys.remoteKey +
         (secondFactor ? `?secondFactor=${secondFactor}` : ''),
@@ -161,17 +159,23 @@ export class EtherealSecretsClient {
       },
     );
 
-    if (!res.data.data) {
+    if (!res.ok) {
+      throw new Error(`Request failed with status ${res.status}`);
+    }
+
+    const body = await res.json();
+
+    if (!body.data) {
       throw new Error('The server did not answer with any data');
     }
 
-    const clearText = await this.decrypt(keys.localKey, res.data.data);
+    const clearText = await this.decrypt(keys.localKey, body.data);
     const result: RemoteRetrieveResult = {
       clearText: clearText,
     };
 
-    if (res.data.expiryDate) {
-      result.expiryDate = new Date(res.data.expiryDate);
+    if (body.expiryDate) {
+      result.expiryDate = new Date(body.expiryDate);
     }
 
     return result;
@@ -183,16 +187,21 @@ export class EtherealSecretsClient {
   ): Promise<void> {
     const keys = this.parseFragmentIdentifier(fragmentIdentifier);
     const { secondFactor } = options;
-    await axios.delete(
+    const res = await fetch(
       this._endpoint +
         keys.remoteKey +
         (secondFactor ? `?secondFactor=${secondFactor}` : ''),
       {
+        method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
       },
     );
+
+    if (!res.ok) {
+      throw new Error(`Request failed with status ${res.status}`);
+    }
   }
 
   public async saveRemote(
@@ -204,26 +213,30 @@ export class EtherealSecretsClient {
       const cipherText = await this.encrypt(secret, clearText);
       const { secondFactor } = options;
 
-      const res = await axios.post(
-        this._endpoint,
-        { data: cipherText.toString(), secondFactor },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
+      const res = await fetch(this._endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      );
+        body: JSON.stringify({ data: cipherText.toString(), secondFactor }),
+      });
 
-      if (!res.data.hasOwnProperty('key')) {
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      const body = await res.json();
+
+      if (!body.hasOwnProperty('key')) {
         throw new Error('The server did not answer with a key');
       }
 
       const result: RemoteSaveResult = {
-        fragmentIdentifier: res.data.key + ';' + secret,
+        fragmentIdentifier: body.key + ';' + secret,
       };
 
-      if (res.data.hasOwnProperty('expiryDate')) {
-        result.expiryDate = new Date(res.data.expiryDate);
+      if (body.hasOwnProperty('expiryDate')) {
+        result.expiryDate = new Date(body.expiryDate);
       }
 
       return result;
@@ -279,21 +292,27 @@ export class EtherealSecretsClient {
       return this._key;
     }
 
-    const res = await axios.get(this._endpoint, {
+    const res = await fetch(this._endpoint, {
       headers: {
         'Content-Type': 'application/json',
       },
-      withCredentials: true,
+      credentials: 'include',
     });
 
-    if (!res.data.key) {
+    if (!res.ok) {
+      throw new Error(`Request failed with status ${res.status}`);
+    }
+
+    const body = await res.json();
+
+    if (!body.key) {
       throw new Error('The server did not answer with a key');
     }
 
     if (this._cacheKey) {
-      this._key = res.data.key;
+      this._key = body.key;
     }
 
-    return res.data.key as string;
+    return body.key as string;
   }
 }

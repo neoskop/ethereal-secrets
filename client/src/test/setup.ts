@@ -1,7 +1,5 @@
 import { webcrypto } from 'crypto';
 import { TextEncoder, TextDecoder } from 'util';
-import axios from 'axios';
-
 Object.defineProperty(globalThis, 'crypto', {
   value: webcrypto,
 });
@@ -16,8 +14,8 @@ beforeAll(async () => {
   let lastError: unknown;
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
-      const res = await axios.get(url, { timeout: 1000 });
-      if (res.status === 200) return;
+      const res = await fetch(url, { signal: AbortSignal.timeout(1000) });
+      if (res.ok) return;
     } catch (err) {
       lastError = err;
     }
