@@ -11,8 +11,68 @@ import {
 import * as ioredis from 'ioredis';
 import * as Validator from 'validator';
 import { RedisOptions } from 'ioredis';
-import RedisStore from 'connect-redis';
 import { v4 as uuidv4 } from 'uuid';
+
+class RedisSessionStore extends session.Store {
+  private client: ioredis.Redis;
+  private ttl: number;
+  private prefix: string;
+
+  constructor(opts: { client: ioredis.Redis; ttl?: number; prefix?: string }) {
+    super();
+    this.client = opts.client;
+    this.ttl = opts.ttl || 86400;
+    this.prefix = opts.prefix || 'sess:';
+  }
+
+  async get(
+    sid: string,
+    cb: (err?: Error, session?: session.SessionData) => void,
+  ) {
+    try {
+      const data = await this.client.get(this.prefix + sid);
+      cb(undefined, data ? JSON.parse(data) : null);
+    } catch (err) {
+      cb(err as Error);
+    }
+  }
+
+  async set(
+    sid: string,
+    sess: session.SessionData,
+    cb?: (err?: Error) => void,
+  ) {
+    try {
+      const data = JSON.stringify(sess);
+      await this.client.set(this.prefix + sid, data, 'EX', this.ttl);
+      cb?.();
+    } catch (err) {
+      cb?.(err as Error);
+    }
+  }
+
+  async destroy(sid: string, cb?: (err?: Error) => void) {
+    try {
+      await this.client.del(this.prefix + sid);
+      cb?.();
+    } catch (err) {
+      cb?.(err as Error);
+    }
+  }
+
+  async touch(
+    sid: string,
+    _sess: session.SessionData,
+    cb?: (err?: Error) => void,
+  ) {
+    try {
+      await this.client.expire(this.prefix + sid, this.ttl);
+      cb?.();
+    } catch (err) {
+      cb?.(err as Error);
+    }
+  }
+}
 
 export interface EtherealSecretsConfig {
   local?: {
@@ -226,7 +286,7 @@ export function etherealSecrets(
     (config.redis.client as ioredis.Redis) || new ioredis.default(config.redis);
 
   const sessionConfig: session.SessionOptions = {
-    store: new RedisStore({
+    store: new RedisSessionStore({
       client: redisClient,
       ttl: mergedConfig.local.ttl,
     }),
