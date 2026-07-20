@@ -1,8 +1,8 @@
 import * as cookieParser from 'cookie-parser';
+import * as crypto from 'crypto';
 import * as express from 'express';
 import IORedis from 'ioredis';
 import supertest = require('supertest');
-import { validate as validateUuid, v4 as uuidV4 } from 'uuid';
 import { etherealSecrets } from '../index';
 type Response = supertest.Response;
 const request = supertest;
@@ -279,7 +279,7 @@ describe('Ethereal Secrets Middleware', () => {
   it('should return 404 for a uuid that does not exist', async () => {
     setupRemoteMiddleware.call(this);
     await request(app)
-      .get('/secrets/' + uuidV4())
+      .get('/secrets/' + crypto.randomUUID())
       .set('Accept', 'application/json')
       .expect(404);
   });
@@ -503,4 +503,8 @@ async function storeRemoteData(data: {
     .set('Accept', 'application/json')
     .expect(201);
   return res.body['key'];
+}
+
+function validateUuid(uuid: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
 }

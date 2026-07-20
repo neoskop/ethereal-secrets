@@ -11,7 +11,6 @@ import {
 import * as ioredis from 'ioredis';
 import * as Validator from 'validator';
 import { RedisOptions } from 'ioredis';
-import { v4 as uuidv4 } from 'uuid';
 
 class RedisSessionStore extends session.Store {
   private client: ioredis.Redis;
@@ -172,7 +171,7 @@ const createRemotelyEncrypted = async (
     res.sendStatus(400);
     return;
   }
-  const uuid = uuidv4();
+  const uuid = crypto.randomUUID();
   let expiryDate = new Date();
   let redisKey = `remote:${uuid}`;
 
