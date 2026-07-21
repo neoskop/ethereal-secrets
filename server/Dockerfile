@@ -1,4 +1,4 @@
-FROM node:24.14.0-bullseye-slim@sha256:89e4f0a8b36b73a32cef97fb2055c040d01af326f4a254588cf081dd794f8124
+FROM node:24.18.0-bullseye-slim@sha256:aca89821b1f09df223227ff2abe075fc3161f05604d3b61309f46820a5938020
 LABEL maintainer "devops@neoskop.de"
 
 WORKDIR /home/node/app
