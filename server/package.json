@@ -13,6 +13,6 @@
     "cookie-parser": "^1.4.7",
     "express": "^5.0.0",
     "express-session": "^1.18.2",
-    "ioredis": "^5.8.2"
+    "ioredis": "^6.0.0"
   }
 }
