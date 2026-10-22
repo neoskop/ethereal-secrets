@@ -21,7 +21,7 @@ services:
       - redis
 
   redis:
-    image: redis:8-alpine@sha256:9d317178eceac8454a2284a9e6df2466b93c745529947f0cd42a0fa9609d7005
+    image: redis:8-alpine@sha256:0bf6577d7774e592b29d093e3ac9390eb91e13d72c21e506afce736de5e0eeb0
 
   server:
     build:
