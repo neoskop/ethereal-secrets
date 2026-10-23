@@ -1,8 +1,3 @@
-/**
- * @jest-environment jsdom
- * @jest-environment-options {"url": "http://server:8080"}
- */
-
 import { EtherealSecretsClient, EtherealSecretsClientConfig } from '../index';
 
 function createClient(config: Object = {}): EtherealSecretsClient {
