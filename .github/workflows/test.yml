@@ -1,0 +1,28 @@
+name: Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Tests need Redis and the test server, wired up in docker-compose.yaml
+      - run: docker compose build
+      - run: docker compose run --rm middleware npm test
+      - run: docker compose run --rm client npm test
