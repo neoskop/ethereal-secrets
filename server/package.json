@@ -9,10 +9,10 @@
   },
   "dependencies": {
     "@neoskop/ethereal-secrets-middleware": "file:../middleware",
-    "body-parser": "^2.0.0",
+    "body-parser": "^2.3.0",
     "cookie-parser": "^1.4.7",
-    "express": "^5.0.0",
-    "express-session": "^1.18.2",
-    "ioredis": "^5.8.2"
+    "express": "^5.3.0",
+    "express-session": "^1.19.0",
+    "ioredis": "^6.0.0"
   }
 }
