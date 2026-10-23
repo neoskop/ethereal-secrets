@@ -1,4 +1,3 @@
-import * as cookieParser from 'cookie-parser';
 import * as crypto from 'crypto';
 import * as express from 'express';
 import IORedis from 'ioredis';
@@ -11,11 +10,11 @@ jest.setTimeout(15000);
 function withHttpConfig(config: any) {
   const base = {
     trustProxy: true,
-    local: {
-      cookie: { secure: false },
-      ...(config.local || {}),
-    },
     ...config,
+    local: {
+      ...config.local,
+      cookie: { secure: false, ...config.local?.cookie },
+    },
   };
   if (!base.redis) {
     base.redis = { client: redis };
@@ -34,6 +33,21 @@ function getCookies(res: Response): string[] {
     return [raw];
   }
   return [];
+}
+
+// Inverse of express-session's cookie signing: "s:<value>.<base64 hmac-sha256>"
+function unsignCookie(cookie: string, secret: string): string {
+  const signed = cookie.replace(/^s:/, '');
+  const value = signed.slice(0, signed.lastIndexOf('.'));
+  const mac = crypto
+    .createHmac('sha256', secret)
+    .update(value)
+    .digest('base64')
+    .replace(/=+$/, '');
+  if (signed !== `${value}.${mac}`) {
+    throw new Error('Invalid cookie signature');
+  }
+  return value;
 }
 
 let redis: IORedis;
@@ -190,7 +204,7 @@ describe('Ethereal Secrets Middleware', () => {
     const res = await request(app).get('/secrets').set('Accept', 'application/json');
     const cookies = getCookies(res);
     let cookieValue = cookies[0]?.replace(/sessionid=(.+?);.+/, '$1');
-    let unsignedCookie = cookieParser.signedCookie(
+    let unsignedCookie = unsignCookie(
       decodeURIComponent(cookieValue),
       'supersecret',
     );
@@ -400,7 +414,7 @@ describe('Ethereal Secrets Middleware', () => {
     const res = await request(app).get('/secrets').set('Accept', 'application/json');
     const cookies = getCookies(res);
     let cookieValue = cookies[0]?.replace(/sessionid=(.+?);.+/, '$1');
-    let unsignedCookie = cookieParser.signedCookie(
+    let unsignedCookie = unsignCookie(
       decodeURIComponent(cookieValue),
       'supersecret',
     );

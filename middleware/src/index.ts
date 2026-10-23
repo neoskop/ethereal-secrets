@@ -1,7 +1,6 @@
 import * as session from 'express-session';
 import * as bodyParser from 'body-parser';
 import * as crypto from 'crypto';
-import * as deepmerge from 'deepmerge';
 import {
   NextFunction,
   Request,
@@ -258,28 +257,25 @@ async function removeRemotelyEncrypted(
 export function etherealSecrets(
   config: EtherealSecretsConfig,
 ): RequestHandler[] {
-  const mergedConfig = deepmerge(
-    {
-      local: {
-        ttl: 4 * 60 * 60, // Default to 4 hours
-        cookie: {
-          name: 'sessionid',
-          secret: crypto.randomBytes(32).toString('hex'),
-        },
-      },
-      remote: {
-        enabled: false,
-        defaultTtl: 2 * 24 * 60 * 60, // Default to 2 days
-        maxTtl: 7 * 24 * 60 * 60, // Default to 1 week
-        maxLength: 64 * 1000,
+  const mergedConfig = {
+    local: {
+      ttl: 4 * 60 * 60, // Default to 4 hours
+      ...config.local,
+      cookie: {
+        name: 'sessionid',
+        secret: crypto.randomBytes(32).toString('hex'),
+        ...config.local?.cookie,
       },
     },
-    {
-      local: config.local || {},
-      remote: config.remote || {},
-      trustProxy: config.trustProxy,
+    remote: {
+      enabled: false,
+      defaultTtl: 2 * 24 * 60 * 60, // Default to 2 days
+      maxTtl: 7 * 24 * 60 * 60, // Default to 1 week
+      maxLength: 64 * 1000,
+      ...config.remote,
     },
-  );
+    trustProxy: config.trustProxy,
+  };
 
   const redisClient: ioredis.Redis =
     (config.redis.client as ioredis.Redis) || new ioredis.default(config.redis);
