@@ -163,7 +163,7 @@ const createRemotelyEncrypted = async (
   redisClient: ioredis.Redis,
   config: { defaultTtl?: number; maxTtl?: number; maxLength?: number },
 ) => {
-  const { data, ttl, secondFactor } = req.body;
+  const { data, ttl, secondFactor } = req.body ?? {};
   const { maxLength, defaultTtl, maxTtl } = config;
 
   if (!data || data.length > maxLength) {
