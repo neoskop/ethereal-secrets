@@ -11,7 +11,11 @@
   "engines": {
     "node": ">= 12.4.0"
   },
-  "repository": "https://bitbucket.org/neoskop/ethereal-secrets-middleware",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neoskop/ethereal-secrets.git",
+    "directory": "middleware"
+  },
   "scripts": {
     "clean": "rimraf ./dist",
     "tsc": "tsc -p .",

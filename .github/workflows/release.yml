@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      increment:
+        description: Version increment
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+concurrency: release
+
+permissions:
+  contents: write
+  id-token: write # npm trusted publishing (OIDC)
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Build and publish
+        env:
+          INCREMENT: ${{ inputs.increment }}
+        run: |
+          for package in client middleware; do
+            (
+              cd "$package"
+              npm ci
+              npm run build
+              npm version "$INCREMENT" --no-git-tag-version
+              npm publish --access public
+            )
+          done
+
+      - name: Commit version bump
+        run: |
+          version=$(jq -r .version middleware/package.json)
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am "chore: Bump version to $version"
+          git push

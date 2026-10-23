@@ -49,5 +49,10 @@
     "setupFilesAfterEnv": [
       "./test/setup.ts"
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neoskop/ethereal-secrets.git",
+    "directory": "client"
   }
 }
