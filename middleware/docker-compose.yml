@@ -11,4 +11,4 @@ services:
     ports:
       - 9229:9229
   redis:
-    image: redis@sha256:234c902a2db49461a129e2d4aeff85b28cf20187ed274a67f6e50995fa713c7b
+    image: redis@sha256:4764ce37931aac77c0d033680b339b19b4a4a81772204d268947cb851212d0ac
